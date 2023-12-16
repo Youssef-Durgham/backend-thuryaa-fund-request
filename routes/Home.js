@@ -2,6 +2,7 @@ const router = require("express").Router();
 const User = require("../model/Users.js");
 const jwt = require("jsonwebtoken");
 const transactionModel = require("../model/transactionModel.js");
+const mongoose = require('mongoose');
 
 router.post("/login", async (req, res) => {
   const { username, password } = req.body;
@@ -86,62 +87,85 @@ router.put('/transaction/:id/pay', async (req, res) => {
 
 router.get('/user/:userId/totals', async (req, res) => {
   try {
-      const userId = req.params.userId;
+    const userId = req.params.userId;
 
-      const totals = await Transaction.aggregate([
-          { $match: { user: mongoose.Types.ObjectId(userId) } },
-          { $group: {
-              _id: {
-                  type: '$type',
-                  paid: '$paid'
-              },
-              totalAmount: { $sum: '$amount' },
-              count: { $sum: 1 }
-          }},
-          { $group: {
-              _id: '$_id.type',
-              totals: {
-                  $push: {
-                      paidStatus: '$_id.paid',
-                      amount: '$totalAmount',
-                      transactionCount: '$count'
-                  }
-              },
-              totalTypeAmount: { $sum: '$totalAmount' }
-          }},
-          { $group: {
-              _id: null,
-              types: {
-                  $push: {
-                      type: '$_id',
-                      totals: '$totals',
-                      totalAmount: '$totalTypeAmount'
-                  }
-              },
-              grandTotal: { $sum: '$totalTypeAmount' }
-          }}
-      ]);
-
-      if (!totals.length) {
-          return res.status(404).send('No transactions found for user');
+    const totals = await transactionModel.aggregate([
+      { $match: { user: new mongoose.Types.ObjectId(userId) } },
+      { 
+        $group: {
+          _id: { type: '$type', paid: '$paid' },
+          totalAmount: { $sum: '$amount' },
+          count: { $sum: 1 }
+        }
+      },
+      { 
+        $group: {
+          _id: '$_id.type',
+          details: {
+            $push: {
+              paidStatus: '$_id.paid',
+              amount: '$totalAmount',
+              transactionCount: '$count'
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          type: '$_id',
+          _id: 0,
+          paidDetails: {
+            $filter: {
+              input: '$details',
+              as: 'detail',
+              cond: { $eq: ['$$detail.paidStatus', true] }
+            }
+          },
+          unpaidDetails: {
+            $filter: {
+              input: '$details',
+              as: 'detail',
+              cond: { $eq: ['$$detail.paidStatus', false] }
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          type: 1,
+          paidTotalAmount: { $sum: '$paidDetails.amount' },
+          paidTotalTransactions: { $sum: '$paidDetails.transactionCount' },
+          unpaidTotalAmount: { $sum: '$unpaidDetails.amount' },
+          unpaidTotalTransactions: { $sum: '$unpaidDetails.transactionCount' }
+        }
       }
+    ]);
 
-      res.send(totals[0]);
+    if (!totals.length) {
+      return res.status(404).send('No transactions found for user');
+    }
+
+    res.send(totals);
   } catch (error) {
-      res.status(500).send('Server error');
+    console.log(error);
+    res.status(500).send('Server error');
   }
 });
+
 
 // Endpoint to get transactions of a user
 router.get("/transactions/:userId", async (req, res) => {
   try {
     const userId = req.params.userId;
-    const transactions = await transactionModel.find({ user: userId });
+    // Query for transactions where 'paid' is false
+    const transactions = await transactionModel.find({ user: userId, paid: false });
     res.status(200).json(transactions);
   } catch (error) {
+    console.log(error)
     res.status(400).json({ error: error.message });
   }
 });
+
 
 router.get("/search/users", async (req, res) => {
   try {
@@ -154,21 +178,24 @@ router.get("/search/users", async (req, res) => {
     const users = await User.find({
       name: new RegExp(searchTerm, "i"),
       role: "user", // Only include users with the role 'user'
-    });
+    }).select("-password"); // Exclude the password field
 
-    // Find transactions for each user
-    const userTransactions = await Promise.all(
-      users.map(async (user) => {
-        const transactions = await transactionModel.find({ user: user._id });
-        return { user, transactions };
-      })
-    );
-
-    res.status(200).json(userTransactions);
+    res.status(200).json(users);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
+router.get('/api/transactions/:userId', async (req, res) => {
+  try {
+      const { userId } = req.params;
+      const transactions = await transactionModel.find({ user: userId });
+      res.json(transactions);
+  } catch (error) {
+      res.status(500).send('Server error');
+  }
+});
+
 
 router.get("/users", async (req, res) => {
   try {
