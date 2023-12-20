@@ -3,6 +3,13 @@ const User = require("../model/Users.js");
 const jwt = require("jsonwebtoken");
 const transactionModel = require("../model/transactionModel.js");
 const mongoose = require('mongoose');
+const admin = require("firebase-admin");
+const serviceAccount = require("../taxi-a519a-firebase-adminsdk-c1qag-a4149b9d00.json");
+
+// Create a new FCM client.
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
 
 router.post("/login", async (req, res) => {
   const { username, password } = req.body;
@@ -219,6 +226,77 @@ router.get("/user/name/:name", async (req, res) => {
     res.status(200).json(user);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/add-fcm-token', async (req, res) => {
+  const { userId, fcmToken } = req.body;
+
+  try {
+    // Find the user by ID
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).send('User not found');
+    }
+
+    // Add the FCM token if it's not already in the array
+    if (!user.fcmTokens.includes(fcmToken)) {
+      user.fcmTokens.push(fcmToken);
+      await user.save();
+    }
+
+    res.send('FCM token added successfully');
+  } catch (error) {
+    res.status(500).send('Error adding FCM token');
+  }
+});
+
+router.post('/send-custom-notification', async (req, res) => {
+  const { userId, title, body } = req.body;
+
+  if (!userId || !title || !body) {
+    return res.status(400).json({ error: 'User ID, title, and body are required' });
+  }
+
+  try {
+    // Find the user and get their FCM tokens
+    const user = await User.findById(userId);
+    if (!user || user.fcmTokens.length === 0) {
+      return res.status(404).json({ error: 'No FCM tokens found for the user' });
+    }
+
+    const tokenList = user.fcmTokens;
+
+    const message = {
+      notification: {
+        title,
+        body,
+      },
+      android: {
+        priority: 'high',
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default',
+          },
+        },
+        headers: {
+          'apns-priority': '10',
+        },
+      },
+      tokens: tokenList,
+    };
+
+    const response = await admin.messaging().sendMulticast(message);
+
+    // Optionally, you can save the notification details in your database
+
+    res.status(200).json({ success: 'Notification sent', response });
+  } catch (error) {
+    console.error('Error sending notification:', error);
+    res.status(500).json({ error: 'Failed to send notification' });
   }
 });
 

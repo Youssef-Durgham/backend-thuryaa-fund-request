@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: { type: String, required: true, enum: ['admin', 'user'] },
   name: { type: String, required: true },
+  fcmTokens: [{ type: String, unique: true }],  // Add this line
 });
 
 userSchema.pre('save', async function (next) {
