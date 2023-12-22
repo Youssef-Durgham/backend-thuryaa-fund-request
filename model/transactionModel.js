@@ -7,6 +7,7 @@ const transactionSchema = new mongoose.Schema({
     dueDate: { type: Date, required: true },
     paid: { type: Boolean, default: false },
     paidDate: { type: Date },
+    status: { type: String, enum: ['not set' ,'waiting', 'confirmed', 'rejected'], default: 'not set' },
     createdAt: { type: Date, default: Date.now }
 });
 
