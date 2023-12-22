@@ -210,6 +210,16 @@ router.get("/api/transactions/:userId", async (req, res) => {
   }
 });
 
+router.get("/api/transHistory/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const transactions = await transactionModel.find({ user: userId });
+    res.json(transactions);
+  } catch (error) {
+    res.status(500).send("Server error");
+  }
+});
+
 router.get("/api/alltransactions/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
