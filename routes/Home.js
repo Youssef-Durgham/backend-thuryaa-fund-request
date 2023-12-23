@@ -61,6 +61,7 @@ router.post("/transaction", async (req, res) => {
       user,
       type,
       amount,
+      amounttx: amount,
       dueDate,
     });
     res.status(201).json(transaction);
@@ -72,18 +73,25 @@ router.post("/transaction", async (req, res) => {
 router.put("/transaction/:id/pay", async (req, res) => {
   try {
     const transactionId = req.params.id;
-    const paidStatus = req.body.paid; // true or false
+    const { paidAmount } = req.body; // Get paidAmount from request body
 
     const transaction = await transactionModel.findById(transactionId);
     if (!transaction) {
       return res.status(404).send("Transaction not found");
     }
 
-    transaction.paid = paidStatus;
-    if (paidStatus) {
-      transaction.paidDate = new Date(); // Set the current date
+    // Check if paidAmount is provided and valid
+    if (paidAmount !== undefined && paidAmount > 0 && transaction.amount >= paidAmount) {
+      transaction.amount -= paidAmount;
+
+      // Set transaction as paid if the amount reaches 0
+      if (transaction.amount === 0) {
+        transaction.paid = true;
+        transaction.paidDate = new Date(); // Set the current date if fully paid
+      }
     } else {
-      transaction.paidDate = null; // Reset the paid date
+      // Handle invalid paidAmount
+      return res.status(400).send("Invalid paid amount");
     }
 
     await transaction.save();
@@ -399,6 +407,12 @@ router.put("/transaction/:id/waiting", async (req, res) => {
       return res.status(404).send("Transaction not found");
     }
 
+    const paidAmount = req.body.paidAmount;
+    if (paidAmount !== undefined) {
+      transaction.paidAmount = paidAmount;
+      transaction.paypaid = true;
+    }
+
     transaction.status = "waiting";
     await transaction.save();
 
@@ -421,7 +435,7 @@ router.put("/transaction/:id/waiting", async (req, res) => {
         const message = {
           notification: {
             title: "Transaction Update",
-            body: `User ${userName} has marked a transaction as paid. Please review.`,
+            body: `User ${userName} has paid ${paidAmount}. Please review.`,
           },
           android: {
             priority: "high",
@@ -447,7 +461,7 @@ router.put("/transaction/:id/waiting", async (req, res) => {
       await new Notification({
         userId: user._id,
         title: "Transaction Update",
-        body: `User ${userName} has marked a transaction as paid. Please review.`,
+        body: `User ${userName} has paid ${paidAmount}. Please review.`,
         screenType: "transactionUpdate",
         jsonData: { transactionId: transaction._id },
       }).save();
@@ -485,7 +499,19 @@ router.put("/transaction/confirm/:id", async (req, res) => {
       return res.status(404).send("Transaction not found");
     }
 
-    transaction.paid = true;
+    // Check if paidAmount is set and subtract it from the amount
+    if (transaction.paidAmount && transaction.amount >= transaction.paidAmount) {
+      transaction.amount -= transaction.paidAmount;
+      transaction.paypaid = false;
+      // Set transaction as paid only if the amount reaches 0
+      if (transaction.amount === 0) {
+        transaction.paid = true;
+      }
+    } else {
+      // Handle the case where paidAmount is not set or is greater than the amount
+      return res.status(400).send("Invalid paid amount");
+    }
+
     transaction.status = "confirmed";
     transaction.paidDate = new Date(); // Set paid date to current date
 
