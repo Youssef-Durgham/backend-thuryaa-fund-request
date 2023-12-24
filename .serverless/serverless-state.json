@@ -195,7 +195,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/test2/dev/1703368535381-2023-12-23T21:55:35.381Z/test2.zip"
+                "S3Key": "serverless/test2/dev/1703401200293-2023-12-24T07:00:00.293Z/test2.zip"
               },
               "Handler": "index.handler",
               "Runtime": "nodejs18.x",
@@ -234,14 +234,14 @@
               "MainLogGroup"
             ]
           },
-          "MainLambdaVersiongfu1O3zASH47gQscX0665pcIkrmz0N0Q6VIYYY5rl4": {
+          "MainLambdaVersion7wgWbyMEyLkoSElcxltB1mlyJbMCyVSieTxIWWdYc": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "MainLambdaFunction"
               },
-              "CodeSha256": "/II5Qje1sRBPd+iNEp+NsVtQJJp+xxh75QHmNf4kXGQ="
+              "CodeSha256": "7QXUi8yeLF22p+tTkNa2vtYtC6M+VNpCMspulrYIkhI="
             }
           },
           "ApiGatewayRestApi": {
@@ -320,7 +320,7 @@
               "MainLambdaPermissionApiGateway"
             ]
           },
-          "ApiGatewayDeployment1703368519622": {
+          "ApiGatewayDeployment1703401184305": {
             "Type": "AWS::ApiGateway::Deployment",
             "Properties": {
               "RestApiId": {
@@ -530,7 +530,7 @@
           "MainLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "MainLambdaVersiongfu1O3zASH47gQscX0665pcIkrmz0N0Q6VIYYY5rl4"
+              "Ref": "MainLambdaVersion7wgWbyMEyLkoSElcxltB1mlyJbMCyVSieTxIWWdYc"
             },
             "Export": {
               "Name": "sls-test2-dev-MainLambdaFunctionQualifiedArn"
@@ -742,7 +742,7 @@
         "timeout": 900,
         "runtime": "nodejs18.x",
         "vpc": {},
-        "versionLogicalId": "MainLambdaVersiongfu1O3zASH47gQscX0665pcIkrmz0N0Q6VIYYY5rl4"
+        "versionLogicalId": "MainLambdaVersion7wgWbyMEyLkoSElcxltB1mlyJbMCyVSieTxIWWdYc"
       }
     },
     "configValidationMode": "warn",
@@ -764,7 +764,7 @@
     "artifact": "/Volumes/programming_folders/debt_control/debt_backend/.serverless/test2.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/test2/dev/1703368535381-2023-12-23T21:55:35.381Z",
+    "artifactDirectoryName": "serverless/test2/dev/1703401200293-2023-12-24T07:00:00.293Z",
     "artifact": "test2.zip"
   }
 }

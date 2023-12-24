@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 const admin = require("firebase-admin");
 const serviceAccount = require("../taxi-a519a-firebase-adminsdk-c1qag-a4149b9d00.json");
 const Notification = require("../model/Notification.js");
+const Payment = require("../model/Payment.js");
 
 // Create a new FCM client.
 admin.initializeApp({
@@ -408,9 +409,11 @@ router.put("/transaction/:id/waiting", async (req, res) => {
     }
 
     const paidAmount = req.body.paidAmount;
+    let newPayment= '';
     if (paidAmount !== undefined) {
-      transaction.paidAmount = paidAmount;
-      transaction.paypaid = true;
+      newPayment = new Payment({ transaction: transaction._id, amount: paidAmount });
+      await newPayment.save();
+      transaction.payments.push(newPayment._id);
     }
 
     transaction.status = "waiting";
@@ -463,7 +466,7 @@ router.put("/transaction/:id/waiting", async (req, res) => {
         title: "Transaction Update",
         body: `User ${userName} has paid ${paidAmount}. Please review.`,
         screenType: "transactionUpdate",
-        jsonData: { transactionId: transaction._id },
+        jsonData: { transactionId: transaction._id, transactiontxt: newPayment._id },
       }).save();
     }
 
@@ -491,52 +494,51 @@ router.get("/transaction/get/:id", async (req, res) => {
   }
 });
 
-router.put("/transaction/confirm/:id", async (req, res) => {
+router.put("/payment/confirm/:paymentId", async (req, res) => {
   try {
-    const transaction = await transactionModel.findById(req.params.id);
-
-    if (!transaction) {
-      return res.status(404).send("Transaction not found");
+    const payment = await Payment.findById(req.params.paymentId);
+    console.log(payment)
+    if (!payment) {
+      return res.status(404).send("Payment not found");
     }
 
-    // Check if paidAmount is set and subtract it from the amount
-    if (transaction.paidAmount && transaction.amount >= transaction.paidAmount) {
-      transaction.amount -= transaction.paidAmount;
-      transaction.paypaid = false;
+    payment.status = "confirmed";
+    await payment.save();
+
+    // Update the transaction
+    const transaction = await transactionModel.findById(payment.transaction);
+    if (transaction.amount >= payment.amount) {
+      transaction.amount -= payment.amount;
       // Set transaction as paid only if the amount reaches 0
       if (transaction.amount === 0) {
         transaction.paid = true;
       }
+      transaction.paidDate = new Date();
+      await transaction.save();
     } else {
-      // Handle the case where paidAmount is not set or is greater than the amount
-      return res.status(400).send("Invalid paid amount");
+      return res.status(400).send("Invalid payment amount");
     }
 
-    transaction.status = "confirmed";
-    transaction.paidDate = new Date(); // Set paid date to current date
-
-    await transaction.save();
-    res.json(transaction);
+    res.json({ transaction, payment });
   } catch (error) {
     console.log(error);
     res.status(500).send(error.message);
   }
 });
 
-router.put("/transaction/reject/:id", async (req, res) => {
+router.put("/payment/reject/:paymentId", async (req, res) => {
   try {
-    const transaction = await transactionModel.findById(req.params.id);
-
-    if (!transaction) {
-      return res.status(404).send("Transaction not found");
+    const payment = await Payment.findById(req.params.paymentId);
+    if (!payment) {
+      return res.status(404).send("Payment not found");
     }
 
-    transaction.paid = false;
-    transaction.status = "rejected";
-    transaction.paidDate = null; // Clear the paid date
+    payment.status = "rejected";
+    await payment.save();
 
-    await transaction.save();
-    res.json(transaction);
+    // No need to update the transaction for rejection, but you can add logic here if needed
+
+    res.json(payment);
   } catch (error) {
     console.log(error);
     res.status(500).send(error.message);

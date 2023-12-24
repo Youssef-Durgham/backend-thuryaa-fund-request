@@ -10,6 +10,7 @@ const transactionSchema = new mongoose.Schema({
     paypaid: { type: Boolean, default: false },
     paidDate: { type: Date },
     paidAmount: { type: Number },
+    payments: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Payment' }],
     status: { type: String, enum: ['not set' ,'waiting', 'confirmed', 'rejected'], default: 'not set' },
     createdAt: { type: Date, default: Date.now }
 });
