@@ -545,4 +545,91 @@ router.put("/payment/reject/:paymentId", async (req, res) => {
   }
 });
 
+router.get('/api/payment/:id', async (req, res) => {
+  try {
+    const paymentId = req.params.id;
+    const paymentData = await Payment.findById(paymentId).populate('transaction');
+    
+    if (!paymentData) {
+      return res.status(404).send('Payment not found');
+    }
+
+    res.json(paymentData);
+  } catch (error) {
+    res.status(500).send('Server error');
+  }
+});
+
+router.post('/transaction/:id/addNote', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { note } = req.body;
+
+    if (!note) {
+      return res.status(400).send('Note is required');
+    }
+
+    const transaction = await mongoose.model('Transaction').findById(id);
+
+    if (!transaction) {
+      return res.status(404).send('Transaction not found');
+    }
+
+    transaction.notes.push(note);
+    await transaction.save();
+
+    res.status(200).send('Note added successfully');
+  } catch (error) {
+    res.status(500).send('Server error');
+  }
+});
+
+router.post('/transaction/:id/addFileLink', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fileLink } = req.body;
+
+    if (!fileLink) {
+      return res.status(400).send('File link is required');
+    }
+
+    const transaction = await mongoose.model('Transaction').findById(id);
+
+    if (!transaction) {
+      return res.status(404).send('Transaction not found');
+    }
+
+    transaction.fileLinks.push(fileLink);
+    await transaction.save();
+
+    res.status(200).send('File link added successfully');
+  } catch (error) {
+    res.status(500).send('Server error');
+  }
+});
+
+router.get('/transactions2/sorted', async (req, res) => {
+  try {
+    const transactions = await transactionModel.find({ paid: false })
+      .populate('user', 'username name') // Populate with desired fields from the User model
+      .sort({ dueDate: 1 }); // Sorting by due date in ascending order
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        transactions
+      }
+    });
+  } catch (err) {
+    console.log(err)
+    res.status(500).json({
+      status: 'error',
+      message: 'Error fetching transactions',
+      error: err.message
+    });
+  }
+});
+
+
+
 module.exports = router;

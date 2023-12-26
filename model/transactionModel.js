@@ -12,6 +12,8 @@ const transactionSchema = new mongoose.Schema({
     paidAmount: { type: Number },
     payments: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Payment' }],
     status: { type: String, enum: ['not set' ,'waiting', 'confirmed', 'rejected'], default: 'not set' },
+    notes: [{ type: String }], // Array of notes
+    fileLinks: [{ type: String }], // Array of file links
     createdAt: { type: Date, default: Date.now }
 });
 
