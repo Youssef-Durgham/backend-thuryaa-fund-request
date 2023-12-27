@@ -560,7 +560,7 @@ router.get('/api/payment/:id', async (req, res) => {
   }
 });
 
-router.post('/transaction/:id/addNote', async (req, res) => {
+router.post('/transaction222/:id/addNote', async (req, res) => {
   try {
     const { id } = req.params;
     const { note } = req.body;
@@ -584,7 +584,7 @@ router.post('/transaction/:id/addNote', async (req, res) => {
   }
 });
 
-router.post('/transaction/:id/addFileLink', async (req, res) => {
+router.post('/transaction333/:id/addFileLink', async (req, res) => {
   try {
     const { id } = req.params;
     const { fileLink } = req.body;
@@ -603,6 +603,28 @@ router.post('/transaction/:id/addFileLink', async (req, res) => {
     await transaction.save();
 
     res.status(200).send('File link added successfully');
+  } catch (error) {
+    res.status(500).send('Server error');
+  }
+});
+
+router.get('/transaction33/:id/details', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find the transaction by ID
+    const transaction = await mongoose.model('Transaction').findById(id).select('fileLinks notes');
+
+    // Check if the transaction exists
+    if (!transaction) {
+      return res.status(404).send('Transaction not found');
+    }
+
+    // Extract fileLinks and notes
+    const { fileLinks, notes } = transaction;
+
+    // Send response
+    res.status(200).json({ fileLinks, notes });
   } catch (error) {
     res.status(500).send('Server error');
   }
