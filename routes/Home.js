@@ -7,6 +7,7 @@ const admin = require("firebase-admin");
 const serviceAccount = require("../taxi-a519a-firebase-adminsdk-c1qag-a4149b9d00.json");
 const Notification = require("../model/Notification.js");
 const Payment = require("../model/Payment.js");
+const Message = require("../model/Message.js");
 
 // Create a new FCM client.
 admin.initializeApp({
@@ -58,6 +59,7 @@ router.post("/register", async (req, res) => {
 router.post("/transaction", async (req, res) => {
   try {
     const { user, type, amount, dueDate } = req.body;
+    console.log(req.body);
     const transaction = await transactionModel.create({
       user,
       type,
@@ -67,6 +69,7 @@ router.post("/transaction", async (req, res) => {
     });
     res.status(201).json(transaction);
   } catch (error) {
+    console.log(error);
     res.status(400).json({ error: error.message });
   }
 });
@@ -651,6 +654,255 @@ router.get('/transactions2/sorted', async (req, res) => {
     });
   }
 });
+
+router.post("/send-message", async (req, res) => {
+  try {
+    const { senderId, receiverId, message } = req.body;
+
+    // Validate senderId and receiverId existence (You may want to add more validation)
+
+    const conversationId = new mongoose.Types.ObjectId();
+
+    const newMessage = new Message({
+      senderId,
+      receiverId,
+      message,
+      conversationId,
+    });
+
+    const savedMessage = await newMessage.save();
+
+    // Send FCM notification to the user with receiverId
+    const receiver = await User.findById(receiverId); // Assuming you have a User model
+    if (receiver && receiver.fcmTokens.length > 0) {
+      const tokens2 = receiver.fcmTokens;
+      const message = {
+        notification: {
+          title: "New Message",
+          body: `You have a new message from ${senderId}`,
+        },
+        android: {
+          priority: "high",
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: "default",
+            },
+          },
+          headers: {
+            "apns-priority": "10",
+          },
+        },
+        tokens: tokens2,
+      };
+  
+      const response = await admin.messaging().sendMulticast(message);
+      
+      // Log details of the response
+      console.log("Multicast Response:", response);
+      
+      // Check for errors in the response
+      if (response.failureCount > 0) {
+        console.error("Failed to send FCM notifications:", response.responses[0].error);
+      }
+      
+      console.log("Successfully sent message:", response);
+
+    res.json(savedMessage);
+  } } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+
+});
+
+
+router.post("/send-message-user", async (req, res) => {
+  try {
+    const { senderId, message } = req.body;
+
+    // Validate senderId existence (You may want to add more validation)
+
+    // Retrieve all admin users' ids
+    const adminUserIds = await User.find({ role: 'admin' }).distinct('_id');
+
+    // Create a unique conversation ID
+    const conversationId = new mongoose.Types.ObjectId();
+
+    // Create a message for each admin user with the same conversation ID
+    const messages = adminUserIds.map(adminId => ({
+      senderId,
+      receiverId: adminId,
+      message,
+      conversationId, // Assign the same conversation ID to all messages
+    }));
+
+    // Bulk insert messages
+    const savedMessages = await Message.insertMany(messages);
+
+    // Retrieve FCM tokens for all admin users
+    const adminUsers = await User.find({ _id: { $in: adminUserIds } });
+
+    // Prepare the list of FCM tokens for all admin users
+    const adminTokens = adminUsers.reduce((tokens, adminUser) => {
+      if (adminUser.fcmTokens && adminUser.fcmTokens.length > 0) {
+        tokens.push(...adminUser.fcmTokens);
+      }
+      return tokens;
+    }, []);
+
+    if (adminTokens.length > 0) {
+      const message = {
+        notification: {
+          title: "New Message",
+          body: `You have a new message from ${senderId}`,
+        },
+        android: {
+          priority: "high",
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: "default",
+            },
+          },
+          headers: {
+            "apns-priority": "10",
+          },
+        },
+        tokens: adminTokens,
+      };
+  
+      const response = await admin.messaging().sendMulticast(message);
+
+      console.log("Successfully sent message to admins:", response);
+    }
+
+    res.json(savedMessages);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+router.get('/view-messages/:userId/:otherUserId', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const otherUserId = req.params.otherUserId;
+
+    // Validate userId and otherUserId existence (You may want to add more validation)
+
+    const messages = await Message.find({
+      $or: [
+        { senderId: userId, receiverId: otherUserId },
+        { senderId: otherUserId, receiverId: userId }
+      ]
+    }).sort({ sentAt: 1 });
+
+    // Determine if the user is the sender for each message in the conversation
+    const messagesWithIsSender = messages.map(message => {
+      const isSender = message.senderId._id.toString() === userId.toString(); // Convert both to strings
+      return { ...message.toObject(), isSender };
+    });
+
+    res.json({ messages: messagesWithIsSender });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+router.get('/view-messages-user/:userId', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    // Validate userId existence (You may want to add more validation)
+
+    // Retrieve all admin users' ids
+    const adminUserIds = await User.find({ role: 'admin' }).distinct('_id');
+
+    // Find messages between the specified user and all admin users
+    const messages = await Message.aggregate([
+      {
+        $match: {
+          $or: [
+            { senderId: userId, receiverId: { $in: adminUserIds } },
+            { senderId: { $in: adminUserIds }, receiverId: userId }
+          ]
+        }
+      },
+      {
+        $sort: { sentAt: 1 }
+      },
+      {
+        $group: {
+          _id: "$conversationId",  // Group by conversationId
+          message: { $first: "$$ROOT" }  // Select only the first message in each group
+        }
+      },
+      {
+        $replaceRoot: { newRoot: "$message" }  // Replace the root document with the selected message
+      }
+    ]);
+
+    res.json(messages);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+router.get('/all-users', async (req, res) => {
+  try {
+    const users = await User.find({}, '_id name username'); // Fetch only _id, name, and username fields
+
+    res.json(users);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+router.get('/user22/:userId/messages', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    // Find distinct conversationIds related to the user
+    const distinctConversations = await Message.distinct('conversationId', {
+      $or: [{ senderId: userId }, { receiverId: userId }],
+    });
+
+    // Find the latest message for each distinct conversationId
+    const messages = await Promise.all(
+      distinctConversations.map(async (conversationId) => {
+        const conversationMessages = await Message.find({ conversationId })
+          .sort('sentAt')
+          .populate('senderId', 'username name') // Assuming you want to include sender information
+          .populate('receiverId', 'username name'); // Assuming you want to include receiver information
+
+        // Determine if the user is the sender for each message in the conversation
+        const messagesWithIsSender = conversationMessages.map(message => {
+          const isSender = message.senderId._id.toString() === userId.toString(); // Convert both to strings
+          console.log(message.senderId._id.toString(), isSender, userId);
+          return { ...message.toObject(), isSender };
+        });
+
+        // Get the latest message in the conversation
+        const latestMessage = messagesWithIsSender[messagesWithIsSender.length - 1];
+
+        return latestMessage;
+      })
+    );
+
+    res.json({ messages });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
 
 
 
