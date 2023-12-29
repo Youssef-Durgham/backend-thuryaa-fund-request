@@ -72,7 +72,7 @@ router.post("/transaction", async (req, res) => {
     console.log(error);
     res.status(400).json({ error: error.message });
   }
-});
+}); 
 
 router.put("/transaction/:id/pay", async (req, res) => {
   try {
