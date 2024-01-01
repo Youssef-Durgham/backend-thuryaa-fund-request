@@ -6,6 +6,7 @@
     },
     "provider": {
       "name": "aws",
+      "versionFunctions": false,
       "runtime": "nodejs18.x",
       "region": "me-south-1",
       "memorySize": 3008,
@@ -19,7 +20,6 @@
         "cors": true
       },
       "stage": "dev",
-      "versionFunctions": true,
       "compiledCloudFormationTemplate": {
         "AWSTemplateFormatVersion": "2010-09-09",
         "Description": "The AWS CloudFormation template for this Serverless application",
@@ -195,7 +195,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/test2/dev/1703804060065-2023-12-28T22:54:20.065Z/test2.zip"
+                "S3Key": "serverless/test2/dev/1704149118167-2024-01-01T22:45:18.167Z/test2.zip"
               },
               "Handler": "index.handler",
               "Runtime": "nodejs18.x",
@@ -233,16 +233,6 @@
             "DependsOn": [
               "MainLogGroup"
             ]
-          },
-          "MainLambdaVersionppwoB5XsF3d7sPd5QYP84CKP6QHBNGcstbOGXYKieFI": {
-            "Type": "AWS::Lambda::Version",
-            "DeletionPolicy": "Retain",
-            "Properties": {
-              "FunctionName": {
-                "Ref": "MainLambdaFunction"
-              },
-              "CodeSha256": "GkMZUaStMN78TKQfYJTjIt5owRiGMWnvVb4s12zIYl4="
-            }
           },
           "ApiGatewayRestApi": {
             "Type": "AWS::ApiGateway::RestApi",
@@ -320,7 +310,7 @@
               "MainLambdaPermissionApiGateway"
             ]
           },
-          "ApiGatewayDeployment1703804044348": {
+          "ApiGatewayDeployment1704149101599": {
             "Type": "AWS::ApiGateway::Deployment",
             "Properties": {
               "RestApiId": {
@@ -525,15 +515,6 @@
             },
             "Export": {
               "Name": "sls-test2-dev-ServerlessDeploymentBucketName"
-            }
-          },
-          "MainLambdaFunctionQualifiedArn": {
-            "Description": "Current Lambda function version",
-            "Value": {
-              "Ref": "MainLambdaVersionppwoB5XsF3d7sPd5QYP84CKP6QHBNGcstbOGXYKieFI"
-            },
-            "Export": {
-              "Name": "sls-test2-dev-MainLambdaFunctionQualifiedArn"
             }
           },
           "ServiceEndpoint": {
@@ -741,8 +722,7 @@
         "memory": 3008,
         "timeout": 900,
         "runtime": "nodejs18.x",
-        "vpc": {},
-        "versionLogicalId": "MainLambdaVersionppwoB5XsF3d7sPd5QYP84CKP6QHBNGcstbOGXYKieFI"
+        "vpc": {}
       }
     },
     "configValidationMode": "warn",
@@ -764,7 +744,7 @@
     "artifact": "/Volumes/programming_folders/debt_control/debt_backend/.serverless/test2.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/test2/dev/1703804060065-2023-12-28T22:54:20.065Z",
+    "artifactDirectoryName": "serverless/test2/dev/1704149118167-2024-01-01T22:45:18.167Z",
     "artifact": "test2.zip"
   }
 }

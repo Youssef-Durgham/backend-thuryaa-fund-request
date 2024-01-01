@@ -35,7 +35,7 @@ router.post("/login", async (req, res) => {
 
 router.post("/register", async (req, res) => {
   try {
-    const { username, password, role, name } = req.body;
+    const { username, password, role, name, Location, phone } = req.body;
     console.log(req.body);
 
     // Check if user already exists
@@ -45,8 +45,8 @@ router.post("/register", async (req, res) => {
     }
 
     // Create a new user
-    const newUser = await User.create({ username, password, role, name });
-
+    const newUser = await User.create({ username, password, role, name, Location, phone });
+console.log(newUser)
     // Optionally remove password from the output
     newUser.password = undefined;
 
@@ -71,7 +71,7 @@ router.post("/transaction", async (req, res) => {
   } catch (error) {
     console.log(error);
     res.status(400).json({ error: error.message });
-  }
+  } 
 }); 
 
 router.put("/transaction/:id/pay", async (req, res) => {
@@ -899,6 +899,60 @@ router.get('/user22/:userId/messages', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+router.put('/transactions/edit/:id', async (req, res) => {
+  const transactionId = req.params.id;
+  const { dueDate, amounttx, type } = req.body;
+
+  try {
+      // Find the transaction by ID
+      const transaction = await transactionModel.findById(transactionId);
+
+      if (!transaction) {
+          return res.status(404).json({ error: 'Transaction not found' });
+      }
+
+      // Update the transaction fields
+      if (dueDate) {
+          transaction.dueDate = dueDate;
+      }
+      if (amounttx) {
+          transaction.amount = amounttx;
+          transaction.amounttx = amounttx;
+      }
+      if (type) {
+          transaction.type = type;
+      }
+
+      // Save the updated transaction
+      await transaction.save();
+
+      // Send the updated transaction as the response
+      res.json(transaction);
+  } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+router.delete('/transactions/delete/:id', async (req, res) => {
+  const transactionId = req.params.id;
+
+  try {
+      // Find the transaction by ID and delete it
+      const deletedTransaction = await transactionModel.findByIdAndDelete(transactionId);
+
+      if (!deletedTransaction) {
+          return res.status(404).json({ error: 'Transaction not found' });
+      }
+
+      // Send the deleted transaction as the response
+      res.json(deletedTransaction);
+  } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 

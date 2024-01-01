@@ -6,6 +6,8 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: { type: String, required: true, enum: ['admin', 'user'] },
   name: { type: String, required: true },
+  Location: { type: String },
+  phone: { type: String },
   fcmTokens: [{ type: String, unique: true }],  // Add this line
 });
 
