@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Counter = require('./counterModel');
 
 const transactionSchema = new mongoose.Schema({
     transactionNumber: { type: String, unique: true },
@@ -20,22 +21,22 @@ const transactionSchema = new mongoose.Schema({
 
 // Pre-save middleware to generate and increment the transactionNumber
 // Pre-save middleware to generate and increment the transactionNumber
-transactionSchema.pre('save', async function (next) {
+transactionSchema.pre('save', async function(next) {
     try {
         if (!this.transactionNumber) {
-            const latestTransaction = await this.constructor.findOne({}, 'transactionNumber', { sort: { 'transactionNumber': -1 } });
-            let nextTransactionNumber = '0001';
+            const counterId = (this.type === 'debt') ? 'debtTransactionNumber' : 'creditTransactionNumber';
+            const counterDoc = await Counter.findByIdAndUpdate(
+                { _id: counterId },
+                { $inc: { seq: 1 } },
+                { new: true, upsert: true }
+            );
 
-            if (latestTransaction && latestTransaction.transactionNumber) {
-                const lastNumber = parseInt(latestTransaction.transactionNumber.slice(1), 10);
-                nextTransactionNumber = ('000' + (lastNumber + 1)).slice(-4);
-            }
+            let nextTransactionNumber = ('000' + counterDoc.seq).slice(-4);
 
             // Add prefix 'D' for debt or 'C' for credit
             const prefix = (this.type === 'debt') ? 'D' : 'C';
             this.transactionNumber = prefix + nextTransactionNumber;
         }
-
         next();
     } catch (error) {
         next(error);

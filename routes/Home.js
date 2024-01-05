@@ -41,18 +41,31 @@ router.post("/register", async (req, res) => {
     // Check if user already exists
     const existingUser = await User.findOne({ username });
     if (existingUser) {
-      return res.status(400).send("User already exists");
+      return res.status(400).json({ error: "User already exists" });
     }
 
     // Create a new user
-    const newUser = await User.create({ username, password, role, name, Location, phone });
-console.log(newUser)
-    // Optionally remove password from the output
-    newUser.password = undefined;
+    const newUser = new User({
+      username,
+      password,
+      role,
+      name,
+      Location,
+      phone,
+      fcmTokens: [] // Initialize fcmTokens as an empty array
+    });
 
-    res.status(201).json(newUser);
+    // Save the new user
+    await newUser.save();
+
+    // Optionally remove the password from the output
+    const userResponse = newUser.toObject();
+    delete userResponse.password;
+
+    res.status(201).json(userResponse);
   } catch (error) {
-    res.status(500).send("Error registering new user");
+    console.error(error);
+    res.status(500).json({ error: "Error registering new user" });
   }
 });
 
@@ -71,8 +84,8 @@ router.post("/transaction", async (req, res) => {
   } catch (error) {
     console.log(error);
     res.status(400).json({ error: error.message });
-  } 
-}); 
+  }
+});
 
 router.put("/transaction/:id/pay", async (req, res) => {
   try {
@@ -85,7 +98,11 @@ router.put("/transaction/:id/pay", async (req, res) => {
     }
 
     // Check if paidAmount is provided and valid
-    if (paidAmount !== undefined && paidAmount > 0 && transaction.amount >= paidAmount) {
+    if (
+      paidAmount !== undefined &&
+      paidAmount > 0 &&
+      transaction.amount >= paidAmount
+    ) {
       transaction.amount -= paidAmount;
 
       // Set transaction as paid if the amount reaches 0
@@ -210,14 +227,41 @@ router.get("/search/users", async (req, res) => {
 router.get("/api/transactions/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    // Query to find transactions where 'user' matches 'userId' and 'paid' is false
-    const transactions = await transactionModel.find({
+
+    // Fetch user role
+    const user = await User.findById(userId);
+    const userRole = user.role;
+
+    let transactionQuery = {
       user: userId,
       paid: false,
-    });
+    };
+
+    // If user role is 'user', add type filter for 'debt'
+    if (userRole === "user") {
+      transactionQuery.type = "debt";
+    }
+
+    // Query to find transactions based on user role
+    const transactions = await transactionModel.find(transactionQuery);
 
     res.json(transactions);
   } catch (error) {
+    console.log(error);
+    res.status(500).send("Server error");
+  }
+});
+
+router.get("/api/transactions/history/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Fetch all transactions (debt and credit) for the user
+    const transactions = await transactionModel.find({ user: userId });
+
+    res.json(transactions);
+  } catch (error) {
+    console.log(error);
     res.status(500).send("Server error");
   }
 });
@@ -228,6 +272,7 @@ router.get("/api/transHistory/:userId", async (req, res) => {
     const transactions = await transactionModel.find({ user: userId });
     res.json(transactions);
   } catch (error) {
+    console.log(error);
     res.status(500).send("Server error");
   }
 });
@@ -412,9 +457,36 @@ router.put("/transaction/:id/waiting", async (req, res) => {
     }
 
     const paidAmount = req.body.paidAmount;
-    let newPayment= '';
+    let newPayment = "";
+
+    // Calculate total paid amount for 'waiting' or 'confirmed' payments
+const totalConfirmedWaitingPaid = await Payment.aggregate([
+  { $match: { transaction: transaction._id, status: { $in: ["waiting", "confirmed"] } } },
+  { $group: { _id: null, totalAmount: { $sum: "$amount" } } }
+]);
+const totalPaidConfirmedWaiting = totalConfirmedWaitingPaid[0] ? totalConfirmedWaitingPaid[0].totalAmount : 0;
+
+// Check if the new paid amount exceeds the amount for the transaction
+if (totalPaidConfirmedWaiting + paidAmount > transaction.amount) {
+  return res.status(400).send("Can't add more payment because the total payment amount is bigger than total amount. Wait for approval or rejection from the owner.");
+}
+
+    // Calculate total paid amount so far
+    const totalPaid = transaction.payments.reduce(async (sum, paymentId) => {
+      const payment = await Payment.findById(paymentId);
+      return sum + payment.amount;
+    }, 0);
+
+    // Check if the new paid amount exceeds the debt amount
+    if (totalPaid + paidAmount > transaction.debtAmount) {
+      return res.status(410).send("Paid amount exceeds the debt amount");
+    }
+
     if (paidAmount !== undefined) {
-      newPayment = new Payment({ transaction: transaction._id, amount: paidAmount });
+      newPayment = new Payment({
+        transaction: transaction._id,
+        amount: paidAmount,
+      });
       await newPayment.save();
       transaction.payments.push(newPayment._id);
     }
@@ -440,8 +512,8 @@ router.put("/transaction/:id/waiting", async (req, res) => {
         // User has FCM tokens, prepare and send the notification
         const message = {
           notification: {
-            title: "Transaction Update",
-            body: `User ${userName} has paid ${paidAmount}. Please review.`,
+            title: "Transaction waiting",
+            body: `User ${userName} has paid ${paidAmount}.`,
           },
           android: {
             priority: "high",
@@ -466,10 +538,13 @@ router.put("/transaction/:id/waiting", async (req, res) => {
       // Save notification to database for each admin, regardless of FCM token existence
       await new Notification({
         userId: user._id,
-        title: "Transaction Update",
-        body: `User ${userName} has paid ${paidAmount}. Please review.`,
+        title: "Transaction waiting",
+        body: `User ${userName} has paid ${paidAmount}.`,
         screenType: "transactionUpdate",
-        jsonData: { transactionId: transaction._id, transactiontxt: newPayment._id },
+        jsonData: {
+          transactionId: transaction._id,
+          transactiontxt: newPayment._id,
+        },
       }).save();
     }
 
@@ -497,17 +572,24 @@ router.get("/transaction/get/:id", async (req, res) => {
   }
 });
 
-router.put("/payment/confirm/:paymentId", async (req, res) => {
+router.put("/payment/confirm/:paymentId/:notificationId", async (req, res) => {
   try {
     const payment = await Payment.findById(req.params.paymentId);
-    console.log(payment)
     if (!payment) {
       return res.status(404).send("Payment not found");
     }
+    console.log("Payment:", payment);
+  
+    // Use payment.transaction instead of req.params.paymentId
+    const transaction2 = await transactionModel.findById(payment.transaction);
+    if (!transaction2) {
+      return res.status(404).send("Transaction not found for the given payment");
+    }
+    console.log("Transaction User:", transaction2.user, "Transaction:", transaction2);
 
     payment.status = "confirmed";
     await payment.save();
-
+    const notification = await Notification.findById(req.params.notificationId);
     // Update the transaction
     const transaction = await transactionModel.findById(payment.transaction);
     if (transaction.amount >= payment.amount) {
@@ -522,18 +604,62 @@ router.put("/payment/confirm/:paymentId", async (req, res) => {
       return res.status(400).send("Invalid payment amount");
     }
 
-    res.json({ transaction, payment });
+    // Update the notification title
+    notification.title = "Transaction approved";
+    await notification.save();
+    const user = await User.findById(transaction2.user);
+    console.log(user);
+
+    // Save the notification details for the user
+    const userNotification = {
+      userId: user._id,
+      title: "payment approved",
+      body: "the payment you paid has be approved",
+      screenType: "paymentConfirmation", // You can modify this as needed
+    };
+
+    const allUserTokens = user.fcmTokens;
+    const message = {
+      notification: {
+        title: "transaction approved",
+        body: `Your transaction of payed have ben approved`,
+      },
+      android: {
+        priority: "high",
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: "default",
+          },
+        },
+        headers: {
+          "apns-priority": "10",
+        },
+      },
+      tokens: allUserTokens,
+    };
+    await Notification.create(userNotification);
+    const response = await admin.messaging().sendMulticast(message);
+
+    res.json({ transaction, payment, notification });
   } catch (error) {
     console.log(error);
     res.status(500).send(error.message);
   }
 });
 
-router.put("/payment/reject/:paymentId", async (req, res) => {
+router.put("/payment/reject/:paymentId/:notificationId", async (req, res) => {
   try {
     const payment = await Payment.findById(req.params.paymentId);
     if (!payment) {
       return res.status(404).send("Payment not found");
+    }
+
+    const notification = await Notification.findById(req.params.notificationId);
+    const users = await transactionModel.findById(payment.transaction);
+    if (!notification) {
+      return res.status(404).send("Notification not found");
     }
 
     payment.status = "rejected";
@@ -541,86 +667,129 @@ router.put("/payment/reject/:paymentId", async (req, res) => {
 
     // No need to update the transaction for rejection, but you can add logic here if needed
 
-    res.json(payment);
+    // Update the notification title
+    notification.title = "Transaction rejected";
+    await notification.save();
+    const user = await User.findById(users.user);
+console.log(user);
+    // Save the notification details for the user
+    const userNotification = {
+      userId: user._id,
+      title: "payment rejected",
+      body: "the payment you paid has be rejected",
+      screenType: "paymentConfirmation", // You can modify this as needed
+    };
+
+    const allUserTokens = user.fcmTokens;
+    console.log(allUserTokens);
+    const message = {
+      notification: {
+        title: "Transaction rejected",
+        body: "Your pay for transaction has rejected",
+      },
+      android: {
+        priority: "high",
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: "default",
+          },
+        },
+        headers: {
+          "apns-priority": "10",
+        },
+      },
+      tokens: allUserTokens,
+    };
+    await Notification.create(userNotification);
+    const response = await admin.messaging().sendMulticast(message);
+console.log(response);
+    res.json({ payment, notification });
   } catch (error) {
     console.log(error);
     res.status(500).send(error.message);
   }
 });
 
-router.get('/api/payment/:id', async (req, res) => {
+router.get("/api/payment/:id", async (req, res) => {
   try {
     const paymentId = req.params.id;
-    const paymentData = await Payment.findById(paymentId).populate('transaction');
-    
+    const paymentData = await Payment.findById(paymentId).populate(
+      "transaction"
+    );
+
     if (!paymentData) {
-      return res.status(404).send('Payment not found');
+      return res.status(404).send("Payment not found");
     }
 
     res.json(paymentData);
   } catch (error) {
-    res.status(500).send('Server error');
+    res.status(500).send("Server error");
   }
 });
 
-router.post('/transaction222/:id/addNote', async (req, res) => {
+router.post("/transaction222/:id/addNote", async (req, res) => {
   try {
     const { id } = req.params;
     const { note } = req.body;
 
     if (!note) {
-      return res.status(400).send('Note is required');
+      return res.status(400).send("Note is required");
     }
 
-    const transaction = await mongoose.model('Transaction').findById(id);
+    const transaction = await mongoose.model("Transaction").findById(id);
 
     if (!transaction) {
-      return res.status(404).send('Transaction not found');
+      return res.status(404).send("Transaction not found");
     }
 
     transaction.notes.push(note);
     await transaction.save();
 
-    res.status(200).send('Note added successfully');
+    res.status(200).send("Note added successfully");
   } catch (error) {
-    res.status(500).send('Server error');
+    res.status(500).send("Server error");
   }
 });
 
-router.post('/transaction333/:id/addFileLink', async (req, res) => {
+router.post("/transaction333/:id/addFileLink", async (req, res) => {
   try {
     const { id } = req.params;
     const { fileLink } = req.body;
 
     if (!fileLink) {
-      return res.status(400).send('File link is required');
+      return res.status(400).send("File link is required");
     }
 
-    const transaction = await mongoose.model('Transaction').findById(id);
+    const transaction = await mongoose.model("Transaction").findById(id);
 
     if (!transaction) {
-      return res.status(404).send('Transaction not found');
+      return res.status(404).send("Transaction not found");
     }
 
     transaction.fileLinks.push(fileLink);
     await transaction.save();
 
-    res.status(200).send('File link added successfully');
+    res.status(200).send("File link added successfully");
   } catch (error) {
-    res.status(500).send('Server error');
+    res.status(500).send("Server error");
   }
 });
 
-router.get('/transaction33/:id/details', async (req, res) => {
+router.get("/transaction33/:id/details", async (req, res) => {
   try {
     const { id } = req.params;
 
     // Find the transaction by ID
-    const transaction = await mongoose.model('Transaction').findById(id).select('fileLinks notes');
+    const transaction = await mongoose
+      .model("Transaction")
+      .findById(id)
+      .select("fileLinks notes");
 
     // Check if the transaction exists
     if (!transaction) {
-      return res.status(404).send('Transaction not found');
+      return res.status(404).send("Transaction not found");
     }
 
     // Extract fileLinks and notes
@@ -629,28 +798,29 @@ router.get('/transaction33/:id/details', async (req, res) => {
     // Send response
     res.status(200).json({ fileLinks, notes });
   } catch (error) {
-    res.status(500).send('Server error');
+    res.status(500).send("Server error");
   }
 });
 
-router.get('/transactions2/sorted', async (req, res) => {
+router.get("/transactions2/sorted", async (req, res) => {
   try {
-    const transactions = await transactionModel.find({ paid: false })
-      .populate('user', 'username name') // Populate with desired fields from the User model
+    const transactions = await transactionModel
+      .find({ paid: false })
+      .populate("user", "username name") // Populate with desired fields from the User model
       .sort({ dueDate: 1 }); // Sorting by due date in ascending order
 
     res.status(200).json({
-      status: 'success',
+      status: "success",
       data: {
-        transactions
-      }
+        transactions,
+      },
     });
   } catch (err) {
-    console.log(err)
+    console.log(err);
     res.status(500).json({
-      status: 'error',
-      message: 'Error fetching transactions',
-      error: err.message
+      status: "error",
+      message: "Error fetching transactions",
+      error: err.message,
     });
   }
 });
@@ -696,27 +866,29 @@ router.post("/send-message", async (req, res) => {
         },
         tokens: tokens2,
       };
-  
+
       const response = await admin.messaging().sendMulticast(message);
-      
+
       // Log details of the response
       console.log("Multicast Response:", response);
-      
+
       // Check for errors in the response
       if (response.failureCount > 0) {
-        console.error("Failed to send FCM notifications:", response.responses[0].error);
+        console.error(
+          "Failed to send FCM notifications:",
+          response.responses[0].error
+        );
       }
-      
+
       console.log("Successfully sent message:", response);
 
-    res.json(savedMessage);
-  } } catch (error) {
+      res.json(savedMessage);
+    }
+  } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal Server Error" });
   }
-
 });
-
 
 router.post("/send-message-user", async (req, res) => {
   try {
@@ -725,13 +897,13 @@ router.post("/send-message-user", async (req, res) => {
     // Validate senderId existence (You may want to add more validation)
 
     // Retrieve all admin users' ids
-    const adminUserIds = await User.find({ role: 'admin' }).distinct('_id');
+    const adminUserIds = await User.find({ role: "admin" }).distinct("_id");
 
     // Create a unique conversation ID
     const conversationId = new mongoose.Types.ObjectId();
 
     // Create a message for each admin user with the same conversation ID
-    const messages = adminUserIds.map(adminId => ({
+    const messages = adminUserIds.map((adminId) => ({
       senderId,
       receiverId: adminId,
       message,
@@ -773,7 +945,7 @@ router.post("/send-message-user", async (req, res) => {
         },
         tokens: adminTokens,
       };
-  
+
       const response = await admin.messaging().sendMulticast(message);
 
       console.log("Successfully sent message to admins:", response);
@@ -782,11 +954,11 @@ router.post("/send-message-user", async (req, res) => {
     res.json(savedMessages);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
-router.get('/view-messages/:userId/:otherUserId', async (req, res) => {
+router.get("/view-messages/:userId/:otherUserId", async (req, res) => {
   try {
     const userId = req.params.userId;
     const otherUserId = req.params.otherUserId;
@@ -796,12 +968,12 @@ router.get('/view-messages/:userId/:otherUserId', async (req, res) => {
     const messages = await Message.find({
       $or: [
         { senderId: userId, receiverId: otherUserId },
-        { senderId: otherUserId, receiverId: userId }
-      ]
+        { senderId: otherUserId, receiverId: userId },
+      ],
     }).sort({ sentAt: 1 });
 
     // Determine if the user is the sender for each message in the conversation
-    const messagesWithIsSender = messages.map(message => {
+    const messagesWithIsSender = messages.map((message) => {
       const isSender = message.senderId._id.toString() === userId.toString(); // Convert both to strings
       return { ...message.toObject(), isSender };
     });
@@ -809,18 +981,18 @@ router.get('/view-messages/:userId/:otherUserId', async (req, res) => {
     res.json({ messages: messagesWithIsSender });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
-router.get('/view-messages-user/:userId', async (req, res) => {
+router.get("/view-messages-user/:userId", async (req, res) => {
   try {
     const userId = req.params.userId;
 
     // Validate userId existence (You may want to add more validation)
 
     // Retrieve all admin users' ids
-    const adminUserIds = await User.find({ role: 'admin' }).distinct('_id');
+    const adminUserIds = await User.find({ role: "admin" }).distinct("_id");
 
     // Find messages between the specified user and all admin users
     const messages = await Message.aggregate([
@@ -828,48 +1000,48 @@ router.get('/view-messages-user/:userId', async (req, res) => {
         $match: {
           $or: [
             { senderId: userId, receiverId: { $in: adminUserIds } },
-            { senderId: { $in: adminUserIds }, receiverId: userId }
-          ]
-        }
+            { senderId: { $in: adminUserIds }, receiverId: userId },
+          ],
+        },
       },
       {
-        $sort: { sentAt: 1 }
+        $sort: { sentAt: 1 },
       },
       {
         $group: {
-          _id: "$conversationId",  // Group by conversationId
-          message: { $first: "$$ROOT" }  // Select only the first message in each group
-        }
+          _id: "$conversationId", // Group by conversationId
+          message: { $first: "$$ROOT" }, // Select only the first message in each group
+        },
       },
       {
-        $replaceRoot: { newRoot: "$message" }  // Replace the root document with the selected message
-      }
+        $replaceRoot: { newRoot: "$message" }, // Replace the root document with the selected message
+      },
     ]);
 
     res.json(messages);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
-router.get('/all-users', async (req, res) => {
+router.get("/all-users", async (req, res) => {
   try {
-    const users = await User.find({}, '_id name username'); // Fetch only _id, name, and username fields
+    const users = await User.find({}, "_id name username"); // Fetch only _id, name, and username fields
 
     res.json(users);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
-router.get('/user22/:userId/messages', async (req, res) => {
+router.get("/user22/:userId/messages", async (req, res) => {
   try {
     const userId = req.params.userId;
 
     // Find distinct conversationIds related to the user
-    const distinctConversations = await Message.distinct('conversationId', {
+    const distinctConversations = await Message.distinct("conversationId", {
       $or: [{ senderId: userId }, { receiverId: userId }],
     });
 
@@ -877,19 +1049,21 @@ router.get('/user22/:userId/messages', async (req, res) => {
     const messages = await Promise.all(
       distinctConversations.map(async (conversationId) => {
         const conversationMessages = await Message.find({ conversationId })
-          .sort('sentAt')
-          .populate('senderId', 'username name') // Assuming you want to include sender information
-          .populate('receiverId', 'username name'); // Assuming you want to include receiver information
+          .sort("sentAt")
+          .populate("senderId", "username name") // Assuming you want to include sender information
+          .populate("receiverId", "username name"); // Assuming you want to include receiver information
 
         // Determine if the user is the sender for each message in the conversation
-        const messagesWithIsSender = conversationMessages.map(message => {
-          const isSender = message.senderId._id.toString() === userId.toString(); // Convert both to strings
+        const messagesWithIsSender = conversationMessages.map((message) => {
+          const isSender =
+            message.senderId._id.toString() === userId.toString(); // Convert both to strings
           console.log(message.senderId._id.toString(), isSender, userId);
           return { ...message.toObject(), isSender };
         });
 
         // Get the latest message in the conversation
-        const latestMessage = messagesWithIsSender[messagesWithIsSender.length - 1];
+        const latestMessage =
+          messagesWithIsSender[messagesWithIsSender.length - 1];
 
         return latestMessage;
       })
@@ -898,66 +1072,98 @@ router.get('/user22/:userId/messages', async (req, res) => {
     res.json({ messages });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
-router.put('/transactions/edit/:id', async (req, res) => {
+router.put("/transactions/edit/:id", async (req, res) => {
   const transactionId = req.params.id;
   const { dueDate, amounttx, type } = req.body;
 
   try {
-      // Find the transaction by ID
-      const transaction = await transactionModel.findById(transactionId);
+    // Find the transaction by ID
+    const transaction = await transactionModel.findById(transactionId);
 
-      if (!transaction) {
-          return res.status(404).json({ error: 'Transaction not found' });
-      }
+    if (!transaction) {
+      return res.status(404).json({ error: "Transaction not found" });
+    }
 
-      // Update the transaction fields
-      if (dueDate) {
-          transaction.dueDate = dueDate;
-      }
-      if (amounttx) {
-          transaction.amount = amounttx;
-          transaction.amounttx = amounttx;
-      }
-      if (type) {
-          transaction.type = type;
-      }
+    // Check if there are any payments associated with this transaction
+    const paymentExists = await Payment.findOne({ transaction: transactionId });
+    if (paymentExists) {
+      return res
+        .status(420)
+        .json({
+          error: "Cannot edit transaction as it has associated payments",
+        });
+    }
 
-      // Save the updated transaction
-      await transaction.save();
+    // Update the transaction fields
+    if (dueDate) {
+      transaction.dueDate = dueDate;
+    }
+    if (amounttx) {
+      transaction.amount = amounttx;
+      transaction.amounttx = amounttx;
+    }
+    if (type) {
+      transaction.type = type;
+    }
 
-      // Send the updated transaction as the response
-      res.json(transaction);
+    // Save the updated transaction
+    await transaction.save();
+
+    // Send the updated transaction as the response
+    res.json(transaction);
   } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Internal Server Error' });
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
-router.delete('/transactions/delete/:id', async (req, res) => {
+router.delete("/transactions/delete/:id", async (req, res) => {
   const transactionId = req.params.id;
 
   try {
-      // Find the transaction by ID and delete it
-      const deletedTransaction = await transactionModel.findByIdAndDelete(transactionId);
+    // Check if there are any payments associated with this transaction
+    const paymentExists = await Payment.findOne({ transaction: transactionId });
+    if (paymentExists) {
+      return res
+        .status(420)
+        .json({
+          error: "Cannot delete transaction as it has associated payments",
+        });
+    }
 
-      if (!deletedTransaction) {
-          return res.status(404).json({ error: 'Transaction not found' });
-      }
+    // If no payments found, find the transaction by ID and delete it
+    const deletedTransaction = await transactionModel.findByIdAndDelete(
+      transactionId
+    );
 
-      // Send the deleted transaction as the response
-      res.json(deletedTransaction);
+    if (!deletedTransaction) {
+      return res.status(404).json({ error: "Transaction not found" });
+    }
+
+    // Send the deleted transaction as the response
+    res.json(deletedTransaction);
   } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Internal Server Error' });
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
+router.get("/payments/data/:transactionId", async (req, res) => {
+  const transactionId = req.params.transactionId;
 
+  try {
+    // Find all payments for the given transaction ID
+    const payments = await Payment.find({ transaction: transactionId });
 
-
+    res.json({ payments });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 
 module.exports = router;

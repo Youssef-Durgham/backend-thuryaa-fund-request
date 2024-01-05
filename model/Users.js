@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   Location: { type: String },
   phone: { type: String },
-  fcmTokens: [{ type: String, unique: true }],  // Add this line
+  fcmTokens: { type: [String] },
 });
 
 userSchema.pre('save', async function (next) {

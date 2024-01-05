@@ -13,6 +13,7 @@
     "jsonwebtoken": "^9.0.0",
     "moment-timezone": "^0.5.43",
     "mongoose": "7.5.3",
+    "mongoose-auto-increment": "^5.0.1",
     "mongoose-paginate-v2": "^1.7.31",
     "pm2": "^5.2.2",
     "serverless-http": "^3.2.0",
