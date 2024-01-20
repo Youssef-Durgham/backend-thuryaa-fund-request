@@ -1,4 +1,4 @@
-service: test2
+service: SPCWMS
 
 provider:
   name: aws
@@ -29,7 +29,7 @@ functions:
   main:
     handler: index.handler
     environment:
-      MONGO_URL: "mongodb+srv://yusif:Yusif123@cluster0.iqat44q.mongodb.net/?retryWrites=true&w=majority"
+      MONGO_URL: "mongodb+srv://yusif:Yusif123@cluster0.kwov7dn.mongodb.net/?retryWrites=true&w=majority"
       TOKEN_SECRET: "laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs"
       ADMIN_SECRET_KEY: "FoodoYusif123@"
       JWT_SECRET: "1234567890"

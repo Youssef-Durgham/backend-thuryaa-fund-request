@@ -80,6 +80,49 @@ router.post("/transaction", async (req, res) => {
       amounttx: amount,
       dueDate,
     });
+    // Find the user and get their FCM tokens
+    const users = await User.findById(user);
+    if (!users || users.fcmTokens.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "No FCM tokens found for the user" });
+    }
+
+    const tokenList = users.fcmTokens;
+
+    const title = "You have a new debt on you";
+    const body = `You have a new debt on you the amount of it is ${amount.toLocaleString()} and the due date is ${dueDate}`;
+
+    const message = {
+      notification: {
+        title,
+        body,
+      },
+      android: {
+        priority: "high",
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: "default",
+          },
+        },
+        headers: {
+          "apns-priority": "10",
+        },
+      },
+      tokens: tokenList,
+    };
+
+    const response = await admin.messaging().sendMulticast(message);
+
+    // Optionally, you can save the notification details in your database
+    await new Notification({
+      userId: user,
+      title,
+      body,
+      screenType: "onlynotifi",
+    }).save();
     res.status(201).json(transaction);
   } catch (error) {
     console.log(error);
@@ -289,8 +332,44 @@ router.get("/api/alltransactions/:userId", async (req, res) => {
 
 router.get("/users", async (req, res) => {
   try {
-    const users = await User.find({ role: "user" }).select("-password");
-    res.status(200).json(users);
+    const usersWithDebtInfo = await User.aggregate([
+      { $match: { role: "user" } },
+      {
+        $lookup: {
+          from: "transactions",
+          localField: "_id",
+          foreignField: "user",
+          as: "transactions"
+        }
+      },
+      {
+        $project: {
+          username: 1,
+          name: 1,
+          Location: 1,
+          phone: 1,
+          transactions: {
+            $filter: {
+              input: "$transactions",
+              as: "transaction",
+              cond: { $eq: ["$$transaction.type", "debt"] }
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          username: 1,
+          name: 1,
+          Location: 1,
+          phone: 1,
+          totalDebt: { $sum: "$transactions.amount" }
+        }
+      },
+      { $sort: { totalDebt: -1 } } // Sorting by totalDebt in descending order
+    ]);
+
+    res.status(200).json(usersWithDebtInfo);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -467,7 +546,7 @@ const totalConfirmedWaitingPaid = await Payment.aggregate([
 const totalPaidConfirmedWaiting = totalConfirmedWaitingPaid[0] ? totalConfirmedWaitingPaid[0].totalAmount : 0;
 
 // Check if the new paid amount exceeds the amount for the transaction
-if (totalPaidConfirmedWaiting + paidAmount > transaction.amount) {
+if (totalPaidConfirmedWaiting + paidAmount > transaction.amounttx) {
   return res.status(400).send("Can't add more payment because the total payment amount is bigger than total amount. Wait for approval or rejection from the owner.");
 }
 
@@ -622,7 +701,7 @@ router.put("/payment/confirm/:paymentId/:notificationId", async (req, res) => {
     const message = {
       notification: {
         title: "transaction approved",
-        body: `Your transaction of payed have ben approved`,
+        body: `Your transaction of payed have ben approved the amount of it is ${payment.amount}`,
       },
       android: {
         priority: "high",
@@ -641,7 +720,7 @@ router.put("/payment/confirm/:paymentId/:notificationId", async (req, res) => {
     };
     await Notification.create(userNotification);
     const response = await admin.messaging().sendMulticast(message);
-
+console.log(response, allUserTokens, user._id )
     res.json({ transaction, payment, notification });
   } catch (error) {
     console.log(error);

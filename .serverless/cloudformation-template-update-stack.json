@@ -173,7 +173,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/test2/dev/1704491626497-2024-01-05T21:53:46.497Z/test2.zip"
+          "S3Key": "serverless/test2/dev/1704749747128-2024-01-08T21:35:47.128Z/test2.zip"
         },
         "Handler": "index.handler",
         "Runtime": "nodejs18.x",
@@ -288,7 +288,7 @@
         "MainLambdaPermissionApiGateway"
       ]
     },
-    "ApiGatewayDeployment1704491607866": {
+    "ApiGatewayDeployment1704749728445": {
       "Type": "AWS::ApiGateway::Deployment",
       "Properties": {
         "RestApiId": {
