@@ -1,8 +1,8 @@
 {
   "service": {
-    "service": "test2",
+    "service": "SPCWMS",
     "serviceObject": {
-      "name": "test2"
+      "name": "SPCWMS"
     },
     "provider": {
       "name": "aws",
@@ -96,7 +96,7 @@
           "MainLogGroup": {
             "Type": "AWS::Logs::LogGroup",
             "Properties": {
-              "LogGroupName": "/aws/lambda/test2-dev-main"
+              "LogGroupName": "/aws/lambda/SPCWMS-dev-main"
             }
           },
           "IamRoleLambdaExecution": {
@@ -124,7 +124,7 @@
                     "Fn::Join": [
                       "-",
                       [
-                        "test2",
+                        "SPCWMS",
                         "dev",
                         "lambda"
                       ]
@@ -142,7 +142,7 @@
                         ],
                         "Resource": [
                           {
-                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/test2-dev*:*"
+                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/SPCWMS-dev*:*"
                           }
                         ]
                       },
@@ -153,7 +153,7 @@
                         ],
                         "Resource": [
                           {
-                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/test2-dev*:*:*"
+                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/SPCWMS-dev*:*:*"
                           }
                         ]
                       },
@@ -177,7 +177,7 @@
                 "Fn::Join": [
                   "-",
                   [
-                    "test2",
+                    "SPCWMS",
                     "dev",
                     {
                       "Ref": "AWS::Region"
@@ -195,16 +195,16 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/test2/dev/1704749747128-2024-01-08T21:35:47.128Z/test2.zip"
+                "S3Key": "serverless/SPCWMS/dev/1705779139518-2024-01-20T19:32:19.518Z/SPCWMS.zip"
               },
               "Handler": "index.handler",
               "Runtime": "nodejs18.x",
-              "FunctionName": "test2-dev-main",
+              "FunctionName": "SPCWMS-dev-main",
               "MemorySize": 3008,
               "Timeout": 900,
               "Environment": {
                 "Variables": {
-                  "MONGO_URL": "mongodb+srv://yusif:Yusif123@cluster0.iqat44q.mongodb.net/?retryWrites=true&w=majority",
+                  "MONGO_URL": "mongodb+srv://yusif:Yusif123@cluster0.kwov7dn.mongodb.net/?retryWrites=true&w=majority",
                   "TOKEN_SECRET": "laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs",
                   "ADMIN_SECRET_KEY": "FoodoYusif123@",
                   "JWT_SECRET": "1234567890",
@@ -237,7 +237,7 @@
           "ApiGatewayRestApi": {
             "Type": "AWS::ApiGateway::RestApi",
             "Properties": {
-              "Name": "dev-test2",
+              "Name": "dev-SPCWMS",
               "BinaryMediaTypes": [
                 "*/*"
               ],
@@ -310,7 +310,7 @@
               "MainLambdaPermissionApiGateway"
             ]
           },
-          "ApiGatewayDeployment1704749728445": {
+          "ApiGatewayDeployment1705779123715": {
             "Type": "AWS::ApiGateway::Deployment",
             "Properties": {
               "RestApiId": {
@@ -362,7 +362,7 @@
           "WebsocketsApi": {
             "Type": "AWS::ApiGatewayV2::Api",
             "Properties": {
-              "Name": "dev-test2-websockets",
+              "Name": "dev-SPCWMS-websockets",
               "RouteSelectionExpression": "$request.body.action",
               "Description": "Serverless Websockets",
               "ProtocolType": "WEBSOCKET"
@@ -489,11 +489,11 @@
               "StageName": "dev",
               "Description": "Serverless Websockets",
               "DeploymentId": {
-                "Ref": "WebsocketsDeploymentGRu3CaANDmJmIoqm5SvYL3AdRJ7Ey9Bzp4Cdt37HAc"
+                "Ref": "WebsocketsDeploymentZo0faNXqBt6KLTTDLQUrLFEkANEEeOMeeW4Z2WEqaaM"
               }
             }
           },
-          "WebsocketsDeploymentGRu3CaANDmJmIoqm5SvYL3AdRJ7Ey9Bzp4Cdt37HAc": {
+          "WebsocketsDeploymentZo0faNXqBt6KLTTDLQUrLFEkANEEeOMeeW4Z2WEqaaM": {
             "Type": "AWS::ApiGatewayV2::Deployment",
             "DependsOn": [
               "SdefaultWebsocketsRoute",
@@ -514,7 +514,7 @@
               "Ref": "ServerlessDeploymentBucket"
             },
             "Export": {
-              "Name": "sls-test2-dev-ServerlessDeploymentBucketName"
+              "Name": "sls-SPCWMS-dev-ServerlessDeploymentBucketName"
             }
           },
           "ServiceEndpoint": {
@@ -540,7 +540,7 @@
               ]
             },
             "Export": {
-              "Name": "sls-test2-dev-ServiceEndpoint"
+              "Name": "sls-SPCWMS-dev-ServiceEndpoint"
             }
           },
           "ServiceEndpointWebsocket": {
@@ -566,7 +566,7 @@
               ]
             },
             "Export": {
-              "Name": "sls-test2-dev-ServiceEndpointWebsocket"
+              "Name": "sls-SPCWMS-dev-ServiceEndpointWebsocket"
             }
           }
         }
@@ -675,7 +675,7 @@
       "main": {
         "handler": "index.handler",
         "environment": {
-          "MONGO_URL": "mongodb+srv://yusif:Yusif123@cluster0.iqat44q.mongodb.net/?retryWrites=true&w=majority",
+          "MONGO_URL": "mongodb+srv://yusif:Yusif123@cluster0.kwov7dn.mongodb.net/?retryWrites=true&w=majority",
           "TOKEN_SECRET": "laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs",
           "ADMIN_SECRET_KEY": "FoodoYusif123@",
           "JWT_SECRET": "1234567890",
@@ -717,7 +717,7 @@
             }
           }
         ],
-        "name": "test2-dev-main",
+        "name": "SPCWMS-dev-main",
         "package": {},
         "memory": 3008,
         "timeout": 900,
@@ -728,7 +728,7 @@
     "configValidationMode": "warn",
     "serviceFilename": "serverless.yml",
     "initialServerlessConfig": {
-      "service": "test2",
+      "service": "SPCWMS",
       "provider": {
         "$ref": "$[\"service\"][\"provider\"]"
       },
@@ -741,10 +741,10 @@
     },
     "layers": {},
     "isDashboardMonitoringPreconfigured": false,
-    "artifact": "/Volumes/programming_folders/debt_control/debt_backend/.serverless/test2.zip"
+    "artifact": "/Volumes/programming_folders/SPC WMS/Backend/.serverless/SPCWMS.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/test2/dev/1704749747128-2024-01-08T21:35:47.128Z",
-    "artifact": "test2.zip"
+    "artifactDirectoryName": "serverless/SPCWMS/dev/1705779139518-2024-01-20T19:32:19.518Z",
+    "artifact": "SPCWMS.zip"
   }
 }
