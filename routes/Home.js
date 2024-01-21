@@ -3,7 +3,7 @@ const User = require("../model/Users.js");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const { body, validationResult } = require('express-validator');
-const Location = require('./Location');
+const Location = require('../model/Location.js');
 const Inventory = require("../model/Inventory.js");
 const Order = require("../model/Order.js");
 
@@ -18,7 +18,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Create and send token (you'll need to set up a secret for JWT)
-    const token = jwt.sign({ id: user._id }, 'your_jwt_secret', { expiresIn: '90d' });
+    const token = jwt.sign({ id: user._id, role: user.role }, 'your_jwt_secret', { expiresIn: '90d' });
     res.status(200).json({ message: "Login successful", token });
   } catch (error) {
     res.status(400).json({ error: error.message });
