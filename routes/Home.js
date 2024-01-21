@@ -210,7 +210,7 @@ router.post('/inventory', async (req, res) => {
 });
 
 // Update Inventory Item
-router.put('/inventory/:id', async (req, res) => {
+router.put('/inventory-edit/:id', async (req, res) => {
   try {
     const item = await Inventory.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!item) {
@@ -223,7 +223,7 @@ router.put('/inventory/:id', async (req, res) => {
 });
 
 // Delete Inventory Item
-router.delete('/inventory/:id', async (req, res) => {
+router.delete('/inventory-delete/:id', async (req, res) => {
   try {
     const item = await Inventory.findByIdAndDelete(req.params.id);
     if (!item) {
@@ -237,6 +237,30 @@ router.delete('/inventory/:id', async (req, res) => {
 
 // List Inventory Items
 router.get('/inventory', async (req, res) => {
+  try {
+    const pageSize = 10; // Set page size
+    const page = parseInt(req.query.page) || 1; // Current page
+
+    // Calculate the total number of items in the Inventory
+    const totalItems = await Inventory.countDocuments();
+
+    // Calculate the total number of pages
+    const totalPages = Math.ceil(totalItems / pageSize);
+
+    // Fetch the items for the current page
+    const items = await Inventory.find()
+                                .skip((page - 1) * pageSize)
+                                .limit(pageSize);
+
+    // Return the items along with pagination details
+    res.json({ items, page, pageSize, totalItems, totalPages });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+
+router.get('/inventory-user', async (req, res) => {
   try {
     const userId = req.user.id; // Assuming you have user's id from the request
     const user = await User.findById(userId).populate('location');
