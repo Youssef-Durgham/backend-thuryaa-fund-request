@@ -259,6 +259,21 @@ router.get('/inventory', async (req, res) => {
   }
 });
 
+router.get('/api/inventory/:barcode', async (req, res) => {
+  try {
+    const barcode = req.params.barcode;
+    const item = await Inventory.findOne({ barcode: barcode });
+
+    if (!item) {
+      return res.status(404).send('Item not found');
+    }
+
+    res.send(item);
+  } catch (error) {
+    res.status(500).send('Server error');
+  }
+});
+
 
 router.get('/inventory-user', async (req, res) => {
   try {
@@ -310,7 +325,7 @@ router.get('/inventory/search', async (req, res) => {
 // api for sell order
 router.post('/orders', async (req, res) => {
   try {
-    const { userId, customerName, items } = req.body; // Include userId in the request
+    const { userId, customerName, items, totalPrice, invoiceNumber } = req.body; // Include userId in the request
 
     // Find the user by userId
     const user = await mongoose.model('User').findById(userId);
@@ -322,7 +337,9 @@ router.post('/orders', async (req, res) => {
     const newOrder = new Order({
       user: userId, // Associate the user with the order
       customerName,
-      items
+      items,
+      totalPrice: totalPrice,
+      invoiceNumber
     });
 
     await newOrder.save();

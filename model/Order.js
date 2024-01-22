@@ -10,6 +10,7 @@ const orderItemSchema = new mongoose.Schema({
     customerName: { type: String, required: true },
     items: [orderItemSchema],
     totalPrice: { type: Number, required: true },
+    invoiceNumber: {type: String, required: true},
     createdAt: { type: Date, default: Date.now }
   });
   
