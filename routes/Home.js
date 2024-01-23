@@ -238,21 +238,33 @@ router.delete('/inventory-delete/:id', async (req, res) => {
 // List Inventory Items
 router.get('/inventory', async (req, res) => {
   try {
-    const pageSize = 10; // Set page size
-    const page = parseInt(req.query.page) || 1; // Current page
+    const pageSize = 10;
+    const page = parseInt(req.query.page) || 1;
+    const userId = req.query.userId;
+    const locationFilter = req.query.location; // Get location filter from query
 
-    // Calculate the total number of items in the Inventory
-    const totalItems = await Inventory.countDocuments();
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
 
-    // Calculate the total number of pages
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    let query = {};
+    if (user.role !== 'admin') {
+      query.location = user.location;
+    } else if (locationFilter && locationFilter !== 'All') {
+      query.location = locationFilter; // Apply location filter for admin
+    }
+
+    const totalItems = await Inventory.countDocuments(query);
     const totalPages = Math.ceil(totalItems / pageSize);
+    const items = await Inventory.find(query)
+                                 .skip((page - 1) * pageSize)
+                                 .limit(pageSize);
 
-    // Fetch the items for the current page
-    const items = await Inventory.find()
-                                .skip((page - 1) * pageSize)
-                                .limit(pageSize);
-
-    // Return the items along with pagination details
     res.json({ items, page, pageSize, totalItems, totalPages });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -299,20 +311,35 @@ router.get('/inventory-user', async (req, res) => {
 // search for items
 router.get('/inventory/search', async (req, res) => {
   try {
-    const userId = req.user.id; // Assuming you have user's id from the request
-    const user = await User.findById(userId).populate('location');
-    if (!user || !user.location) {
-      return res.status(404).json({ message: 'User or user location not found' });
-    }
-
+    const userId = req.query.userId;
     const query = req.query.q; // Search query
+    const inventoryId = req.query.inventoryId; // Optional Inventory ID from the query
     const pageSize = 10; // Set page size
     const page = parseInt(req.query.page) || 1; // Current page
 
-    const searchItems = await Inventory.find({
-                                  location: user.location._id,
-                                  name: { $regex: query, $options: "i" } // Search by name
-                                })
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    let searchCriteria = {
+      name: { $regex: query, $options: "i" } // Search by name
+    };
+
+    // For non-admin users, restrict search to the user's location
+    if (user.role !== 'admin') {
+      searchCriteria.location = user.location;
+    } else if (req.query.location && req.query.location !== 'All') {
+      // For admin users, apply location filter if provided
+      searchCriteria.location = req.query.location;
+    }
+
+    // Apply inventory ID filter if provided
+    if (inventoryId) {
+      searchCriteria._id = inventoryId;
+    }
+
+    const searchItems = await Inventory.find(searchCriteria)
                                 .skip((page - 1) * pageSize)
                                 .limit(pageSize);
 
