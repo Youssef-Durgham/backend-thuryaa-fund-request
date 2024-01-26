@@ -7,6 +7,7 @@ const orderItemSchema = new mongoose.Schema({
   
   const orderSchema = new mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Add this line
+    orderType: { type: String, required: true, enum: ['sell', 'return', 'exchange', 'transfer', 'direct sell'] }, // New field
     customerName: { type: String, required: true },
     items: [orderItemSchema],
     totalPrice: { type: Number, required: true },

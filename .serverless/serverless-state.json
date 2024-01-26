@@ -195,7 +195,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/SPCWMS/dev/1706015511787-2024-01-23T13:11:51.787Z/SPCWMS.zip"
+                "S3Key": "serverless/SPCWMS/dev/1706305287831-2024-01-26T21:41:27.831Z/SPCWMS.zip"
               },
               "Handler": "index.handler",
               "Runtime": "nodejs18.x",
@@ -310,7 +310,7 @@
               "MainLambdaPermissionApiGateway"
             ]
           },
-          "ApiGatewayDeployment1706015495281": {
+          "ApiGatewayDeployment1706305271587": {
             "Type": "AWS::ApiGateway::Deployment",
             "Properties": {
               "RestApiId": {
@@ -744,7 +744,7 @@
     "artifact": "/Volumes/programming_folders/SPC WMS/Backend/.serverless/SPCWMS.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/SPCWMS/dev/1706015511787-2024-01-23T13:11:51.787Z",
+    "artifactDirectoryName": "serverless/SPCWMS/dev/1706305287831-2024-01-26T21:41:27.831Z",
     "artifact": "SPCWMS.zip"
   }
 }

@@ -6,6 +6,7 @@ const { body, validationResult } = require('express-validator');
 const Location = require('../model/Location.js');
 const Inventory = require("../model/Inventory.js");
 const Order = require("../model/Order.js");
+const History = require("../model/History.js");
 
 //api to login
 router.post('/login', async (req, res) => {
@@ -201,9 +202,25 @@ router.get('/locations', async (req, res) => {
 // Add Inventory Item
 router.post('/inventory', async (req, res) => {
   try {
-    const newItem = new Inventory(req.body);
-    await newItem.save();
-    res.status(201).json(newItem);
+    const existingItem = await Inventory.findOne({ barcode: req.body.barcode });
+    if (existingItem) {
+      existingItem.quantity += req.body.quantity;
+      await existingItem.save();
+      res.json(existingItem);
+    } else {
+      const newItem = new Inventory(req.body);
+      await newItem.save();
+
+      // Record the add action in history
+      const historyEntry = new History({
+        userId: req.body.userId, // Get the user ID from the request body
+        actionType: 'add',
+        details: `Added new item: ${JSON.stringify(newItem)}`
+      });
+      await historyEntry.save();
+
+      res.status(201).json(newItem);
+    }
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -212,11 +229,45 @@ router.post('/inventory', async (req, res) => {
 // Update Inventory Item
 router.put('/inventory-edit/:id', async (req, res) => {
   try {
-    const item = await Inventory.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!item) {
+    // First, find the current state of the item
+    const currentItem = await Inventory.findById(req.params.id);
+    if (!currentItem) {
       return res.status(404).json({ message: 'Inventory item not found' });
     }
-    res.json(item);
+
+    // Store old data for history
+    const oldData = {
+      name: currentItem.name,
+      barcode: currentItem.barcode,
+      quantity: currentItem.quantity,
+      location: currentItem.location,
+      price: currentItem.price
+    };
+
+    // Update the item with new data
+    const updatedItem = await Inventory.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updatedItem) {
+      return res.status(404).json({ message: 'Error updating item' });
+    }
+
+    // Store new data for history
+    const newData = {
+      name: updatedItem.name,
+      barcode: updatedItem.barcode,
+      quantity: updatedItem.quantity,
+      location: updatedItem.location,
+      price: updatedItem.price
+    };
+
+    // Record the edit action in history
+    const historyEntry = new History({
+      userId: req.body.userId, // Assuming you have the user ID from session or token
+      actionType: 'edit',
+      details: `Edited item with ID: ${req.params.id}. Old data: ${JSON.stringify(oldData)}, New data: ${JSON.stringify(newData)}`
+    });
+    await historyEntry.save();
+
+    res.json(updatedItem);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -225,10 +276,21 @@ router.put('/inventory-edit/:id', async (req, res) => {
 // Delete Inventory Item
 router.delete('/inventory-delete/:id', async (req, res) => {
   try {
-    const item = await Inventory.findByIdAndDelete(req.params.id);
+    const item = await Inventory.findById(req.params.id);
     if (!item) {
       return res.status(404).json({ message: 'Inventory item not found' });
     }
+
+    const historyDetails = `Deleted item '${item.name}' with barcode: ${item.barcode}, quantity: ${item.quantity}, and ID: ${req.params.id}`;
+
+    const historyEntry = new History({
+      userId: req.query.userId, // Get user ID from query parameters
+      actionType: 'delete',
+      details: historyDetails
+    });
+    await historyEntry.save();
+
+    await Inventory.findByIdAndDelete(req.params.id);
     res.status(204).send();
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -366,11 +428,119 @@ router.post('/orders', async (req, res) => {
       customerName,
       items,
       totalPrice: totalPrice,
-      invoiceNumber
+      invoiceNumber,
+      orderType: 'sell'
     });
 
     await newOrder.save();
     res.status(201).json(newOrder);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+function generateInvoiceNumber() {
+  const timestamp = Date.now();
+  return `INV-${timestamp}`;
+}
+
+router.post('/direct-sale', async (req, res) => {
+  try {
+    const { userId, barcode, quantity, invoiceNumber } = req.body;
+
+    // Find the user by userId
+    const user = await mongoose.model('User').findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Find the inventory item by barcode
+    const inventoryItem = await mongoose.model('Inventory').findOne({ barcode: barcode });
+    if (!inventoryItem || quantity > inventoryItem.quantity) {
+      return res.status(400).json({ message: 'Invalid barcode or insufficient inventory quantity' });
+    }
+
+    // Create a new order item
+    const orderItem = {
+      inventoryItem: inventoryItem._id,
+      quantity: quantity
+    };
+
+    // Create a new order
+    const newOrder = new Order({
+      user: userId,
+      customerName: user.name, // Assuming the user model has a 'name' field
+      items: [orderItem],
+      totalPrice: inventoryItem.price * quantity,
+      invoiceNumber: invoiceNumber, // Implement this function as per your requirement
+      orderType: 'direct sell'
+    });
+
+    await newOrder.save();
+    res.status(201).json(newOrder);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+router.post('/transfer-inventory', async (req, res) => {
+  try {
+    const { userId, itemId, quantity: quantityString, fromLocationId, toLocationId } = req.body;
+
+    // Convert quantity from string to number
+    const quantity = parseInt(quantityString, 10);
+    if (isNaN(quantity)) {
+      return res.status(400).json({ message: 'Invalid quantity format' });
+    }
+
+    // Find the inventory item by ID at the original location
+    const inventoryItem = await mongoose.model('Inventory').findOne({
+      _id: itemId,
+      location: fromLocationId
+    });
+    if (!inventoryItem) {
+      return res.status(404).json({ message: 'Inventory item not found at the original location' });
+    }
+
+    // Check if the quantity is available in the current location
+    if (quantity > inventoryItem.quantity) {
+      return res.status(400).json({ message: 'Insufficient quantity in current inventory', requested: quantity, available: inventoryItem.quantity });
+    }
+
+    // Handle the inventory at the destination location
+    let destinationInventory = await mongoose.model('Inventory').findOne({
+      barcode: inventoryItem.barcode,
+      location: toLocationId
+    });
+
+    if (destinationInventory) {
+      // If found, update its quantity
+      destinationInventory.quantity += quantity;
+      await destinationInventory.save();
+    } else {
+      // If not found, create a new inventory record for the destination
+      const newInventory = new mongoose.model('Inventory')({
+        name: inventoryItem.name,
+        barcode: inventoryItem.barcode,
+        quantity: quantity,
+        location: toLocationId,
+        price: inventoryItem.price
+      });
+      await newInventory.save();
+    }
+
+    // Create a transfer order
+    const transferOrder = new Order({
+      user: userId,
+      customerName: 'Inventory Transfer',
+      items: [{ inventoryItem: inventoryItem._id, quantity: quantity }],
+      totalPrice: 0,
+      invoiceNumber: generateInvoiceNumber(),
+      orderType: 'transfer'
+    });
+
+    await transferOrder.save();
+    res.status(201).json(transferOrder);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -435,6 +605,34 @@ router.get('/reports/inventory', async (req, res) => {
     ]);
 
     res.json(inventoryReport);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get('/user-history/:userId', async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query; // Default values for pagination
+    const userId = req.params.userId;
+
+    // Validate the userId, if needed
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid User ID" });
+    }
+
+    const history = await History.find({ userId: userId })
+      .sort({ date: -1 }) // Sort by date in descending order
+      .skip((page - 1) * limit) // Skip the previous pages
+      .limit(limit) // Limit the number of results
+      .exec();
+
+    const total = await History.countDocuments({ userId: userId });
+
+    res.json({
+      history,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
