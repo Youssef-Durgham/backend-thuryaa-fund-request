@@ -7,6 +7,39 @@ const Location = require('../model/Location.js');
 const Inventory = require("../model/Inventory.js");
 const Order = require("../model/Order.js");
 const History = require("../model/History.js");
+const { v5: uuidv5 } = require('uuid');
+const Transaction = require("../model/Transaction.js");
+
+function generateOpNumber() {
+  // High-resolution timestamp in microseconds
+  const timestamp = process.hrtime.bigint().toString(36);
+
+  // Generate a short random string
+  const randomPart = Math.random().toString(36).substring(2, 6);
+
+  // Combine timestamp and random string
+  return timestamp + randomPart;
+}
+
+router.get('/generate-op-number', (req, res) => {
+  const opNumber = generateOpNumber();
+  res.json({ opNumber });
+});
+
+
+router.get('/transactions/:opNumber', async (req, res) => {
+  try {
+    const { opNumber } = req.params;
+    const transaction = await Transaction.findOne({ opNumber }).populate('items');
+    if (!transaction) {
+      return res.status(404).json({ message: "Transaction not found" });
+    }
+    res.json(transaction);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 
 //api to login
 router.post('/login', async (req, res) => {
@@ -226,6 +259,61 @@ router.post('/inventory', async (req, res) => {
   }
 });
 
+router.post('/inventory/bulk', async (req, res) => {
+  try {
+    const { items, opNumber } = req.body;
+
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ message: "Invalid input: Expected an array of items." });
+    }
+
+    const transactionItems = [];
+    for (const item of items) {
+      const existingItem = await Inventory.findOne({ barcode: item.barcode });
+      let inventoryItem;
+
+      if (existingItem) {
+        existingItem.quantity += item.quantity;
+        if (item.dateAdded) {
+          existingItem.dateAdded = new Date(item.dateAdded);
+        }
+        await existingItem.save();
+        inventoryItem = existingItem;
+      } else {
+        if (!item.dateAdded) {
+          item.dateAdded = new Date();
+        } else {
+          item.dateAdded = new Date(item.dateAdded);
+        }
+        const newItem = new Inventory(item);
+        await newItem.save();
+        inventoryItem = newItem;
+
+        // Example: Save history of new item addition, if needed
+        // Remember to define the History model and schema
+        const historyEntry = new History({
+          userId: item.userId, // Assuming userId is part of each item
+          actionType: 'add',
+          details: `Added new item: ${JSON.stringify(newItem)}`
+        });
+        await historyEntry.save();
+      }
+
+      transactionItems.push(inventoryItem._id);
+    }
+
+    const transaction = new Transaction({
+      opNumber,
+      items: transactionItems
+    });
+    await transaction.save();
+
+    res.status(201).json(transaction);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Update Inventory Item
 router.put('/inventory-edit/:id', async (req, res) => {
   try {
@@ -315,7 +403,7 @@ router.get('/inventory', async (req, res) => {
     }
 
     let query = {};
-    if (user.role !== 'admin') {
+    if (user.role !== 'admin' && user.role !== 'manager') {
       query.location = user.location;
     } else if (locationFilter && locationFilter !== 'All') {
       query.location = locationFilter; // Apply location filter for admin
