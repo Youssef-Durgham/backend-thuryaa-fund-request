@@ -262,6 +262,10 @@ router.post('/inventory', async (req, res) => {
 router.post('/inventory/bulk', async (req, res) => {
   try {
     const { items, opNumber } = req.body;
+    let { transactionType } = req.body;
+
+    // Set default transaction type to 'add' if not provided
+    transactionType = transactionType || 'add';
 
     if (!Array.isArray(items)) {
       return res.status(400).json({ message: "Invalid input: Expected an array of items." });
@@ -273,7 +277,12 @@ router.post('/inventory/bulk', async (req, res) => {
       let inventoryItem;
 
       if (existingItem) {
-        existingItem.quantity += item.quantity;
+        // Adjust quantity for 'add' transaction type
+        if (transactionType === 'add') {
+          existingItem.quantity += item.quantity;
+        }
+        // Other transaction types like 'transfer', 'direct sale', 'sale' will have different logic
+
         if (item.dateAdded) {
           existingItem.dateAdded = new Date(item.dateAdded);
         }
@@ -288,29 +297,100 @@ router.post('/inventory/bulk', async (req, res) => {
         const newItem = new Inventory(item);
         await newItem.save();
         inventoryItem = newItem;
-
-        // Example: Save history of new item addition, if needed
-        // Remember to define the History model and schema
-        const historyEntry = new History({
-          userId: item.userId, // Assuming userId is part of each item
-          actionType: 'add',
-          details: `Added new item: ${JSON.stringify(newItem)}`
-        });
-        await historyEntry.save();
       }
 
-      transactionItems.push(inventoryItem._id);
+      transactionItems.push({ itemId: inventoryItem._id, quantity: item.quantity });
     }
 
     const transaction = new Transaction({
       opNumber,
-      items: transactionItems
+      items: transactionItems,
+      transactionType
     });
     await transaction.save();
 
     res.status(201).json(transaction);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+router.post('/transfer-inventory/bulk', async (req, res) => {
+  try {
+    const { transfers, opNumber } = req.body; // transfers is an array of objects { userId, itemId, quantity, fromLocationId, toLocationId }
+
+      if (!Array.isArray(transfers)) {
+          return res.status(400).json({ message: "Invalid input: Expected an array of transfers." });
+      }
+
+      const transactionItems = [];
+      for (const transfer of transfers) {
+          const { userId, itemId, quantity: quantityString, fromLocationId, toLocationId } = transfer;
+
+          // Convert quantity from string to number and validate
+          const quantity = parseInt(quantityString, 10);
+          if (isNaN(quantity)) {
+              throw new Error('Invalid quantity format');
+          }
+
+          // Find and validate inventory item
+          const inventoryItem = await Inventory.findOne({
+              _id: itemId,
+              location: fromLocationId
+          });
+          if (!inventoryItem || quantity > inventoryItem.quantity) {
+              throw new Error('Inventory item not found or insufficient quantity');
+          }
+
+          // Update or create destination inventory
+          let destinationInventory = await Inventory.findOne({
+              barcode: inventoryItem.barcode,
+              location: toLocationId
+          });
+          if (destinationInventory) {
+              destinationInventory.quantity += quantity;
+              await destinationInventory.save();
+          } else {
+              const newInventory = new Inventory({
+                  name: inventoryItem.name,
+                  barcode: inventoryItem.barcode,
+                  quantity,
+                  location: toLocationId,
+                  price: inventoryItem.price
+              });
+              await newInventory.save();
+          }
+
+          // Deduct the quantity from the source location
+          inventoryItem.quantity -= quantity;
+          await inventoryItem.save();
+
+          // Prepare transaction item
+          transactionItems.push({ inventoryItem: inventoryItem._id, quantity });
+
+          // Create a transfer order for each item (optional: you might want one order for all transfers)
+          const transferOrder = new Order({
+              user: userId,
+              customerName: 'Inventory Transfer',
+              items: [{ inventoryItem: inventoryItem._id, quantity: quantity }],
+              totalPrice: 0,
+              invoiceNumber: generateInvoiceNumber(),
+              orderType: 'transfer'
+          });
+          await transferOrder.save();
+      }
+
+      // Create a bulk transaction
+      const bulkTransaction = new Transaction({
+        opNumber,
+        items: transactionItems,
+        transactionType: 'transfer' // or any other relevant type according to your application logic
+    });
+    await bulkTransaction.save();
+
+      res.status(201).json(bulkTransaction);
+  } catch (error) {
+      res.status(500).json({ message: error.message });
   }
 });
 
@@ -482,6 +562,42 @@ router.get('/inventory/search', async (req, res) => {
     } else if (req.query.location && req.query.location !== 'All') {
       // For admin users, apply location filter if provided
       searchCriteria.location = req.query.location;
+    }
+
+    // Apply inventory ID filter if provided
+    if (inventoryId) {
+      searchCriteria._id = inventoryId;
+    }
+
+    const searchItems = await Inventory.find(searchCriteria)
+                                .skip((page - 1) * pageSize)
+                                .limit(pageSize);
+
+    res.json({ items: searchItems, page, pageSize });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get('/inventory/search/transfer', async (req, res) => {
+  try {
+    const { userId, q: query, inventoryId, page: pageQuery, location: locationQuery } = req.query;
+    const pageSize = 10; // Set page size
+    const page = parseInt(pageQuery) || 1; // Current page
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    let searchCriteria = { name: { $regex: query, $options: "i" } }; // Search by name
+
+    // For non-admin users, restrict search to the user's location
+    if (user.role !== 'admin') {
+      searchCriteria.location = user.location;
+    } else if (locationQuery && locationQuery !== 'All') {
+      // For admin users, apply location filter if provided
+      searchCriteria.location = locationQuery;
     }
 
     // Apply inventory ID filter if provided
