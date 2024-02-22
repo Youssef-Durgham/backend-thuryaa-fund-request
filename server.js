@@ -11,6 +11,11 @@ const rateLimit = require("express-rate-limit");
 const fs = require("fs");
 const sslify = require("express-sslify");
 const pm2 = require('pm2')
+const readXlsxFile = require('read-excel-file/node');
+const Inventory = require('./model/Inventory'); // Adjust path as needed
+const Group = require('./model/Group');         // Adjust path as needed
+const Type = require('./model/Type');           // Adjust path as needed
+const Location = require('./model/Location');   // Adjust path as needed
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -49,8 +54,103 @@ mongoose
   .then(() => console.log("MongoDB Connected"))
   .catch((err) => console.log(err));
 
-//Route Middlewares
-app.use("/", home);
+
+  
+  // // MongoDB connection
+  // mongoose.connect('mongodb://localhost:27017/yourDatabase', {
+  //   useNewUrlParser: true,
+  //   useUnifiedTopology: true
+  // }).then(() => {
+  //   console.log("Connected to MongoDB");
+  // }).catch(err => {
+  //   console.error("Error connecting to MongoDB", err);
+  // });
+  
+  // Utility function to find or create a model
+  async function findOrCreateModel(Model, query, create) {
+    let model = await Model.findOne(query);
+    console.log(model)
+    if (!model) {
+      model = new Model(create);
+      await model.save();
+    }
+    return model;
+  }
+  
+  // Function to insert data from Excel
+  async function insertData(data) {
+    for (const row of data) {
+      const [
+        itemBarcode,       // Item No.
+        karadaQuantity,    // Quantity in Karada
+        zafaraniaQuantity, // Quantity in Zafarania
+        itemName,          // Item Description
+        groupName,         // Group Name
+        _,                 // Additional Identifier (currently unused)
+        typeName           // LV1 (Type Name)
+      ] = row;
+  
+      if (!groupName) {
+        console.error("Group name is missing for item:", itemName);
+        continue; // Skip this row if groupName is missing
+      }
+  
+      const group = await findOrCreateModel(Group, { name: groupName }, { name: groupName });
+  
+      if (!typeName) {
+        console.error("Type name is missing for item:", itemName);
+        continue; // Skip this row if typeName is missing
+      }
+  
+      const type = await findOrCreateModel(Type, { name: typeName, group: group._id }, { name: typeName, group: group._id });
+  
+      // Link the type with the group
+      if (!group.types.includes(type._id)) {
+        group.types.push(type._id);
+        await group.save();
+      }
+
+      if (karadaQuantity >= 0) {
+        const karadaLocation = await findOrCreateModel(Location, { name: 'Karada' }, { name: 'Karada', address: 'Address for Karada' });
+        const inventoryItemKarada = new Inventory({
+          name: itemName,
+          barcode: itemBarcode,
+          location: karadaLocation._id,
+          quantity: karadaQuantity,
+          group: group._id,
+          type: type._id,
+        });
+        await inventoryItemKarada.save();
+      }
+  
+      if (zafaraniaQuantity >= 0) {
+        const zafaraniaLocation = await findOrCreateModel(Location, { name: 'Zafarania' }, { name: 'Zafarania', address: 'Address for Zafarania' });
+        const inventoryItemZafarania = new Inventory({
+          name: itemName,
+          barcode: itemBarcode,
+          location: zafaraniaLocation._id,
+          quantity: zafaraniaQuantity,
+          group: group._id,
+          type: type._id,
+        });
+        await inventoryItemZafarania.save();
+      }
+    }
+  }
+  
+  // Function to read data from Excel file
+  async function readExcelData(filePath) {
+    let rows = await readXlsxFile(filePath);
+    return rows.slice(1); // Assuming the first row is headers
+  }
+  
+  // Example usage
+  const filePath = './lastdata.xlsx'; // Replace with your file path
+  readExcelData(filePath)
+    .then(data => insertData(data))
+    .then(() => console.log('Data inserted successfully'))
+    .catch(err => console.error('Error processing data', err));
+  
 
 // // Start the HTTPS server for ssl
 // https.createServer(credentials, app).listen(3000, () => {

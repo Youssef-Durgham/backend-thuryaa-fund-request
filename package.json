@@ -17,6 +17,7 @@
     "mongoose-auto-increment": "^5.0.1",
     "mongoose-paginate-v2": "^1.7.31",
     "pm2": "^5.2.2",
+    "read-excel-file": "^5.7.1",
     "serverless-http": "^3.2.0",
     "shortid": "^2.2.16"
   }

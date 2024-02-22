@@ -9,6 +9,8 @@ const Order = require("../model/Order.js");
 const History = require("../model/History.js");
 const { v5: uuidv5 } = require('uuid');
 const Transaction = require("../model/Transaction.js");
+const Type = require("../model/Type.js");
+const Group = require("../model/Group.js");
 
 function generateOpNumber() {
   // High-resolution timestamp in microseconds
@@ -261,10 +263,9 @@ router.post('/inventory', async (req, res) => {
 
 router.post('/inventory/bulk', async (req, res) => {
   try {
-    const { items, opNumber } = req.body;
+    const { items, opNumber, userId } = req.body;
     let { transactionType } = req.body;
 
-    // Set default transaction type to 'add' if not provided
     transactionType = transactionType || 'add';
 
     if (!Array.isArray(items)) {
@@ -277,11 +278,12 @@ router.post('/inventory/bulk', async (req, res) => {
       let inventoryItem;
 
       if (existingItem) {
-        // Adjust quantity for 'add' transaction type
         if (transactionType === 'add') {
           existingItem.quantity += item.quantity;
         }
-        // Other transaction types like 'transfer', 'direct sale', 'sale' will have different logic
+        // Optional: Update group and type if provided
+        if (item.group) existingItem.group = item.group;
+        if (item.type) existingItem.type = item.type;
 
         if (item.dateAdded) {
           existingItem.dateAdded = new Date(item.dateAdded);
@@ -289,11 +291,8 @@ router.post('/inventory/bulk', async (req, res) => {
         await existingItem.save();
         inventoryItem = existingItem;
       } else {
-        if (!item.dateAdded) {
-          item.dateAdded = new Date();
-        } else {
-          item.dateAdded = new Date(item.dateAdded);
-        }
+        // Set dateAdded and create new item
+        item.dateAdded = item.dateAdded ? new Date(item.dateAdded) : new Date();
         const newItem = new Inventory(item);
         await newItem.save();
         inventoryItem = newItem;
@@ -305,7 +304,8 @@ router.post('/inventory/bulk', async (req, res) => {
     const transaction = new Transaction({
       opNumber,
       items: transactionItems,
-      transactionType
+      transactionType,
+      userId // Save the userId here
     });
     await transaction.save();
 
@@ -315,82 +315,88 @@ router.post('/inventory/bulk', async (req, res) => {
   }
 });
 
+
 router.post('/transfer-inventory/bulk', async (req, res) => {
   try {
-    const { transfers, opNumber } = req.body; // transfers is an array of objects { userId, itemId, quantity, fromLocationId, toLocationId }
+    const { transfers, opNumber, userId } = req.body;
 
-      if (!Array.isArray(transfers)) {
-          return res.status(400).json({ message: "Invalid input: Expected an array of transfers." });
-      }
+    if (!Array.isArray(transfers)) {
+        return res.status(400).json({ message: "Invalid input: Expected an array of transfers." });
+    }
 
-      const transactionItems = [];
-      for (const transfer of transfers) {
-          const { userId, itemId, quantity: quantityString, fromLocationId, toLocationId } = transfer;
+    const transactionItems = [];
+    for (const transfer of transfers) {
+        const { userId, itemId, quantity: quantityString, fromLocationId, toLocationId } = transfer;
 
-          // Convert quantity from string to number and validate
-          const quantity = parseInt(quantityString, 10);
-          if (isNaN(quantity)) {
-              throw new Error('Invalid quantity format');
-          }
+        // Convert quantity from string to number and validate
+        const quantity = parseInt(quantityString, 10);
+        if (isNaN(quantity)) {
+            throw new Error('Invalid quantity format');
+        }
 
-          // Find and validate inventory item
-          const inventoryItem = await Inventory.findOne({
-              _id: itemId,
-              location: fromLocationId
-          });
-          if (!inventoryItem || quantity > inventoryItem.quantity) {
-              throw new Error('Inventory item not found or insufficient quantity');
-          }
+        // Find and validate inventory item
+        const inventoryItem = await Inventory.findOne({
+            _id: itemId,
+            location: fromLocationId
+        });
+        if (!inventoryItem || quantity > inventoryItem.quantity) {
+            throw new Error('Inventory item not found or insufficient quantity');
+        }
 
-          // Update or create destination inventory
-          let destinationInventory = await Inventory.findOne({
-              barcode: inventoryItem.barcode,
-              location: toLocationId
-          });
-          if (destinationInventory) {
-              destinationInventory.quantity += quantity;
-              await destinationInventory.save();
-          } else {
-              const newInventory = new Inventory({
-                  name: inventoryItem.name,
-                  barcode: inventoryItem.barcode,
-                  quantity,
-                  location: toLocationId,
-                  price: inventoryItem.price
-              });
-              await newInventory.save();
-          }
+        // Update or create destination inventory
+        let destinationInventory = await Inventory.findOne({
+            barcode: inventoryItem.barcode,
+            location: toLocationId
+        });
+        if (destinationInventory) {
+            destinationInventory.quantity += quantity;
+            await destinationInventory.save();
+        } else {
+            const newInventory = new Inventory({
+                name: inventoryItem.name,
+                barcode: inventoryItem.barcode,
+                quantity,
+                location: toLocationId,
+                price: inventoryItem.price,
+                group: inventoryItem.group, // Copy group from source item
+                type: inventoryItem.type, // Copy type from source item
+            });
+            await newInventory.save();
+        }
 
-          // Deduct the quantity from the source location
-          inventoryItem.quantity -= quantity;
-          await inventoryItem.save();
 
-          // Prepare transaction item
-          transactionItems.push({ inventoryItem: inventoryItem._id, quantity });
+        await inventoryItem.save();
 
-          // Create a transfer order for each item (optional: you might want one order for all transfers)
-          const transferOrder = new Order({
-              user: userId,
-              customerName: 'Inventory Transfer',
-              items: [{ inventoryItem: inventoryItem._id, quantity: quantity }],
-              totalPrice: 0,
-              invoiceNumber: generateInvoiceNumber(),
-              orderType: 'transfer'
-          });
-          await transferOrder.save();
-      }
+        // Prepare transaction item
+        transactionItems.push({
+            itemId: inventoryItem._id, // or destinationInventory._id if you want to reference the new item
+            quantity
+        });
 
-      // Create a bulk transaction
-      const bulkTransaction = new Transaction({
-        opNumber,
-        items: transactionItems,
-        transactionType: 'transfer' // or any other relevant type according to your application logic
+        // Optional: Create a transfer order for each item
+        const transferOrder = new Order({
+            user: userId,
+            customerName: 'Inventory Transfer',
+            items: [{ inventoryItem: inventoryItem._id, quantity: quantity }],
+            totalPrice: 0,
+            invoiceNumber: generateInvoiceNumber(), // Ensure you have a function to generate this
+            orderType: 'transfer'
+        });
+        await transferOrder.save();
+    }
+
+    // Create a bulk transaction
+    const bulkTransaction = new Transaction({
+      opNumber,
+      items: transactionItems,
+      transactionType: 'transfer',
+      userId
     });
     await bulkTransaction.save();
 
-      res.status(201).json(bulkTransaction);
+    res.status(201).json(bulkTransaction);
   } catch (error) {
-      res.status(500).json({ message: error.message });
+    res.status(500).json({ message: error.message });
   }
 });
 
@@ -492,13 +498,25 @@ router.get('/inventory', async (req, res) => {
     const totalItems = await Inventory.countDocuments(query);
     const totalPages = Math.ceil(totalItems / pageSize);
     const items = await Inventory.find(query)
-                                 .skip((page - 1) * pageSize)
-                                 .limit(pageSize);
+    .populate('group', 'name') // Populating 'group' field with its 'name'
+    .populate('type', 'name')  // Populating 'type' field with its 'name'
+    .skip((page - 1) * pageSize)
+    .limit(pageSize);
 
-    res.json({ items, page, pageSize, totalItems, totalPages });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+// Transform items to replace group and type ObjectId with their names
+const transformedItems = items.map(item => {
+const itemObject = item.toObject();
+return {
+...itemObject,
+group: item.group ? item.group.name : null, // Check if group exists
+type: item.type ? item.type.name : null     // Check if type exists
+};
+});
+
+res.json({ items: transformedItems, page, pageSize, totalItems, totalPages });
+} catch (error) {
+res.status(500).json({ message: error.message });
+}
 });
 
 router.get('/api/inventory/:barcode', async (req, res) => {
@@ -842,7 +860,99 @@ router.get('/user-history/:userId', async (req, res) => {
   }
 });
 
+router.post('/api/groups', async (req, res) => {
+  try {
+    const group = new Group({
+      name: req.body.name,
+      // ... other fields ...
+    });
+    await group.save();
+    res.status(201).send(group);
+  } catch (error) {
+    res.status(400).send(error);
+  }
+});
 
+router.post('/api/types', async (req, res) => {
+  try {
+    const type = new Type({
+      name: req.body.name,
+      group: req.body.groupId,
+      // ... other fields ...
+    });
+
+    const savedType = await type.save();
+
+    const group = await Group.findById(req.body.groupId);
+    if (!group) {
+      return res.status(404).send('Group not found');
+    }
+
+    group.types.push(savedType._id);
+    await group.save();
+
+    res.status(201).send(savedType);
+  } catch (error) {
+    res.status(400).send(error);
+  }
+});
+
+
+router.get('/api/groups', async (req, res) => {
+  try {
+    const groups = await Group.find().populate('types');
+    res.status(200).send(groups);
+  } catch (error) {
+    res.status(500).send(error);
+  }
+});
+
+router.get('/users/all', async (req, res) => {
+  try {
+    const users = await User.find();
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+
+router.get('/transactions/all/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = 10;
+    const skip = (page - 1) * limit;
+
+    // Fetch the user's name
+    const user = await User.findById(userId).select('name');
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const transactions = await Transaction.find({ userId: userId })
+      .populate({
+        path: 'items.itemId',
+        populate: { path: 'group type location' }
+      })
+      .sort({ date: -1 }) // Sort by date in descending order
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Transaction.countDocuments({ userId: userId });
+    const pages = Math.ceil(total / limit);
+
+    res.json({
+      transactions,
+      total,
+      pages,
+      currentPage: page,
+      userName: user.name // Include the user's name in the response
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 
 

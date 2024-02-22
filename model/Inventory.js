@@ -7,6 +7,8 @@ const inventorySchema = new mongoose.Schema({
   location: { type: mongoose.Schema.Types.ObjectId, ref: 'Location', required: true },
   price: { type: Number },
   dateAdded: { type: Date, required: false },
+  group: { type: mongoose.Schema.Types.ObjectId, ref: 'Group', required: true },
+  type: { type: mongoose.Schema.Types.ObjectId, ref: 'Type', required: true },
   // Additional fields as needed
 });
 
