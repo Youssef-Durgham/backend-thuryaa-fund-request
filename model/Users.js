@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema({
   phone: { type: String },
   fcmTokens: { type: [String] },
   // Additional fields
-  email: { type: String, unique: true },
+  email: { type: String },
   department: { type: String },
   hireDate: { type: Date },
 });
