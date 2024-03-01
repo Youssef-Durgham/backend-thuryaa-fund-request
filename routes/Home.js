@@ -302,7 +302,7 @@ const userRole = user.role; // Retrieve the role of the user
     for (const item of items) {
       const existingItem = await Inventory.findOne({ barcode: item.barcode });
       let inventoryItem;
-      const fromLocationId = (userRole === 'admin' || userRole === 'manager') ? item.fromLocationId : user.location;
+      const fromLocationId = (userRole === 'admin' || userRole === 'manager') ? item.location : user.location;
 
       if (existingItem) {
         if (transactionType === 'add') {
@@ -426,7 +426,7 @@ router.post('/transfer-inventory/bulk', async (req, res) => {
 
     // Create a bulk transaction
     const bulkTransaction = new Transaction({
-      opNumber2,
+      opNumber: opNumber,
       items: transactionItems,
       transactionType: 'transfer',
       userId
@@ -513,8 +513,6 @@ router.delete('/inventory-delete/:id', async (req, res) => {
 // List Inventory Items
 router.get('/inventory', async (req, res) => {
   try {
-    const pageSize = 10;
-    const page = parseInt(req.query.page) || 1;
     const userId = req.query.userId;
     const locationFilter = req.query.location; // Get location filter from query
 
@@ -534,28 +532,25 @@ router.get('/inventory', async (req, res) => {
       query.location = locationFilter; // Apply location filter for admin
     }
 
-    const totalItems = await Inventory.countDocuments(query);
-    const totalPages = Math.ceil(totalItems / pageSize);
+    // Fetch all items that match the query without pagination
     const items = await Inventory.find(query)
-    .populate('group', 'name') // Populating 'group' field with its 'name'
-    .populate('type', 'name')  // Populating 'type' field with its 'name'
-    .skip((page - 1) * pageSize)
-    .limit(pageSize);
+      .populate('group', 'name') // Populating 'group' field with its 'name'
+      .populate('type', 'name'); // Populating 'type' field with its 'name'
 
-// Transform items to replace group and type ObjectId with their names
-const transformedItems = items.map(item => {
-const itemObject = item.toObject();
-return {
-...itemObject,
-group: item.group ? item.group.name : null, // Check if group exists
-type: item.type ? item.type.name : null     // Check if type exists
-};
-});
+    // Transform items to replace group and type ObjectId with their names
+    const transformedItems = items.map(item => {
+      const itemObject = item.toObject();
+      return {
+        ...itemObject,
+        group: item.group ? item.group.name : null, // Check if group exists
+        type: item.type ? item.type.name : null     // Check if type exists
+      };
+    });
 
-res.json({ items: transformedItems, page, pageSize, totalItems, totalPages });
-} catch (error) {
-res.status(500).json({ message: error.message });
-}
+    res.json({ items: transformedItems });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
 router.get('/api/inventory/:barcode', async (req, res) => {
@@ -619,51 +614,77 @@ router.get('/inventory/search', async (req, res) => {
   try {
     const userId = req.query.userId;
     const query = req.query.q; // Search query
-    const inventoryId = req.query.inventoryId; // Optional Inventory ID from the query
-    const pageSize = 10; // Set page size
-    const page = parseInt(req.query.page) || 1; // Current page
+    const inventoryId = req.query.inventoryId; // Optional Inventory ID
+    const groupFilter = req.query.group;
+    const typeFilter = req.query.type;
+    const minQuantity = req.query.minQuantity;
 
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    let searchCriteria = {
-      name: { $regex: query, $options: "i" } // Search by name
-    };
+    let searchCriteria = {};
+    if (query) {
+      searchCriteria.$or = [
+        { name: { $regex: query, $options: "i" } },
+        { barcode: { $regex: query, $options: "i" } }
+      ];
+    }
 
     if (req.query.location && req.query.location !== 'All') {
-      // Apply location filter if provided and not 'All'
       searchCriteria.location = req.query.location;
     } else if (user.role !== 'admin') {
-      // For non-admin users, restrict search to the user's location
       searchCriteria.location = user.location;
     }
 
-    // Apply inventory ID filter if provided
     if (inventoryId) {
       searchCriteria._id = inventoryId;
     }
 
+    if (groupFilter) {
+      searchCriteria.group = groupFilter;
+    }
+
+    if (typeFilter) {
+      searchCriteria.type = typeFilter;
+    }
+
+    if (minQuantity) {
+      searchCriteria.quantity = { $gte: Number(minQuantity) };
+    }
+
+    // Default sort criteria: sort by quantity in descending order
+    let sortCriteria = { quantity: -1 };
+
+    // Allow overriding sort criteria if provided in query
+    if (req.query.sortBy) {
+      const sortFields = req.query.sortBy.split(',');
+      sortFields.forEach(field => {
+        let [key, order] = field.split(':');
+        sortCriteria[key] = order === 'desc' ? -1 : 1;
+      });
+    }
+
     const searchItems = await Inventory.find(searchCriteria)
-                            .populate('group', 'name')
-                            .populate('type', 'name')
-                            .skip((page - 1) * pageSize)
-                            .limit(pageSize);
+    .populate('group', 'name')
+    .populate('type', 'name')
+    .populate('location', 'name') // Populate location name
+    .sort(sortCriteria);
 
-    // Transform the data
-    const transformedItems = searchItems.map(item => {
-      return {
-        ...item.toObject(),
-        group: item.group.name,
-        type: item.type.name
-      };
-    });
+const transformedItems = searchItems.map(item => {
+return {
+...item.toObject(),
+group: item.group ? item.group.name : null,
+type: item.type ? item.type.name : null,
+location: item.location ? item.location.name : null // Add location name
+};
+});
 
-    res.json({ items: transformedItems, page, pageSize });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+res.json({ items: transformedItems });
+} catch (error) {
+res.status(500).json({ message: error.message });
+}
 });
 
 router.get('/inventory/search/transfer', async (req, res) => {
@@ -1182,6 +1203,32 @@ router.get('/inventory-summary', async (req, res) => {
   }
 });
 
+router.get('/api/transaction2/:opNumber', async (req, res) => {
+  try {
+      const opNumber = req.params.opNumber;
+      const regexPattern = new RegExp('.*' + opNumber + '$');
+
+      // Find the transaction and populate the user and items
+      const transaction = await Transaction.findOne({ opNumber: { $regex: regexPattern } })
+        .populate({
+          path: 'userId',
+          select: 'username name role location email phone department hireDate -_id' // select fields you need, exclude sensitive data
+        })
+        .populate({
+          path: 'items.itemId',
+          select: 'name barcode quantity location price dateAdded group type -_id',
+          populate: { path: 'location', select: 'name address -_id' } // nested populate for location in inventory
+        }).exec();
+
+      if (!transaction) {
+          return res.status(404).send('Transaction not found');
+      }
+
+      res.json(transaction);
+  } catch (error) {
+      res.status(500).send('Server error');
+  }
+});
 
 
 
