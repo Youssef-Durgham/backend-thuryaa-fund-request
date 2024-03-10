@@ -12,6 +12,8 @@ const orderItemSchema = new mongoose.Schema({
     items: [orderItemSchema],
     totalPrice: { type: Number, required: true },
     invoiceNumber: {type: String, required: true},
+    note: { type: String }, // Optional note field
+  buyInvoiceNumber: { type: String }, // Optional buy invoice number field
     createdAt: { type: Date, default: Date.now }
   });
   

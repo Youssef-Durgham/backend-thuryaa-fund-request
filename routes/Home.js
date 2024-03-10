@@ -115,14 +115,11 @@ router.put('/users/:id', async (req, res) => {
     // Update the user fields from the request body
     for (let key in req.body) {
       if (req.body.hasOwnProperty(key)) {
-        // If the password is being updated, hash it before saving
-        if (key === 'password' && req.body[key]) {
-          req.body[key] = await bcrypt.hash(req.body[key], 12);
-        }
         user[key] = req.body[key];
       }
     }
 
+    // The 'pre('save', ...)' middleware in userSchema will handle the password hashing
     // Save the updated user
     const updatedUser = await user.save();
 
@@ -259,15 +256,24 @@ router.post('/inventory', async (req, res) => {
     const existingItem = await Inventory.findOne({ barcode: req.body.barcode });
     if (existingItem) {
       existingItem.quantity += req.body.quantity;
+
+      // Optionally update invoiceNumber and note if provided
+      if (req.body.invoiceNumber) existingItem.invoiceNumber = req.body.invoiceNumber;
+      if (req.body.note) existingItem.note = req.body.note;
+
       await existingItem.save();
       res.json(existingItem);
     } else {
-      const newItem = new Inventory(req.body);
+      const newItem = new Inventory({
+        ...req.body,
+        invoiceNumber: req.body.invoiceNumber,
+        note: req.body.note
+      });
       await newItem.save();
 
       // Record the add action in history
       const historyEntry = new History({
-        userId: req.body.userId, // Get the user ID from the request body
+        userId: req.body.userId,
         actionType: 'add',
         details: `Added new item: ${JSON.stringify(newItem)}`
       });
@@ -282,9 +288,9 @@ router.post('/inventory', async (req, res) => {
 
 router.post('/inventory/bulk', async (req, res) => {
   try {
-    const { items, opNumber, userId } = req.body;
+    const { items, opNumber, userId, note, buyInvoiceNumber } = req.body;
     let { transactionType } = req.body;
-
+console.log(req.body)
     transactionType = transactionType || 'add';
 
     const user = await User.findById(userId);
@@ -333,7 +339,9 @@ const userRole = user.role; // Retrieve the role of the user
       opNumber,
       items: transactionItems,
       transactionType,
-      userId // Save the userId here
+      userId,
+      note, // Ensure the note is included here
+      buyInvoiceNumber // Ensure the buyInvoiceNumber is included here
     });
     await transaction.save();
 
@@ -346,7 +354,7 @@ const userRole = user.role; // Retrieve the role of the user
 
 router.post('/transfer-inventory/bulk', async (req, res) => {
   try {
-    const { transfers, opNumber, opNumber2, userId } = req.body;
+    const { transfers, opNumber, opNumber2, userId, note, buyInvoiceNumber } = req.body;
 
     if (!Array.isArray(transfers)) {
         return res.status(400).json({ message: "Invalid input: Expected an array of transfers." });
@@ -419,7 +427,9 @@ router.post('/transfer-inventory/bulk', async (req, res) => {
             items: [{ inventoryItem: inventoryItem._id, quantity: quantity }],
             totalPrice: 0,
             invoiceNumber: generateInvoiceNumber(), // Ensure you have a function to generate this
-            orderType: 'transfer'
+            orderType: 'transfer',
+            note, // Added field
+      buyInvoiceNumber
         });
         await transferOrder.save();
     }
@@ -429,7 +439,9 @@ router.post('/transfer-inventory/bulk', async (req, res) => {
       opNumber: opNumber,
       items: transactionItems,
       transactionType: 'transfer',
-      userId
+      userId,
+      note, // Added field
+      buyInvoiceNumber
     });
     await bulkTransaction.save();
 
@@ -586,6 +598,36 @@ router.get('/api/inventory/:barcode', async (req, res) => {
   }
 });
 
+router.get('/api/inventory22/:barcode', async (req, res) => {
+  try {
+    const { userId, location: locationParam } = req.query; // Assuming you are passing them as query parameters
+    const barcode = req.params.barcode;
+
+    // Find user based on userId
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).send('User not found');
+    }
+
+    // Determine the location based on the user's role
+    let location = user.role === 'admin' || user.role === 'manager' ? locationParam : user.location;
+
+    // Modify this to use regex for partial matching of the barcode
+    const regex = new RegExp(barcode, 'i'); // 'i' for case-insensitive
+    const items = await Inventory.find({ barcode: regex, location: location });
+
+    if (!items || items.length === 0) {
+      return res.status(404).send('No items found with this barcode');
+    }
+
+    res.send(items);
+  } catch (error) {
+    console.log(error)
+    res.status(500).send('Server error');
+  }
+});
+
+
 
 
 router.get('/inventory-user', async (req, res) => {
@@ -612,6 +654,7 @@ router.get('/inventory-user', async (req, res) => {
 // search for items
 router.get('/inventory/search', async (req, res) => {
   try {
+    console.log(req.query)
     const userId = req.query.userId;
     const query = req.query.q; // Search query
     const inventoryId = req.query.inventoryId; // Optional Inventory ID
@@ -632,11 +675,11 @@ router.get('/inventory/search', async (req, res) => {
       ];
     }
 
-    if (req.query.location && req.query.location !== 'All') {
+    if (req.query.location && req.query.location !== 'All' && req.query.location !== 'undefined') {
       searchCriteria.location = req.query.location;
-    } else if (user.role !== 'admin') {
+  } else if (user.role !== 'admin' && user.location && user.location !== 'undefined') {
       searchCriteria.location = user.location;
-    }
+  }
 
     if (inventoryId) {
       searchCriteria._id = inventoryId;
@@ -683,6 +726,7 @@ location: item.location ? item.location.name : null // Add location name
 
 res.json({ items: transformedItems });
 } catch (error) {
+  console.log(error)
 res.status(500).json({ message: error.message });
 }
 });
@@ -690,7 +734,8 @@ res.status(500).json({ message: error.message });
 router.get('/inventory/search/transfer', async (req, res) => {
   try {
     const { userId, q: query, inventoryId, page: pageQuery, location: locationQuery } = req.query;
-    const pageSize = 10; // Set page size
+    const pageSize = 100; // Set page size to 100
+
     const page = parseInt(pageQuery) || 1; // Current page
 
     const user = await User.findById(userId);
@@ -698,9 +743,13 @@ router.get('/inventory/search/transfer', async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    let searchCriteria = { name: { $regex: query, $options: "i" } }; // Search by name
+    let searchCriteria = {
+      $or: [
+        { name: { $regex: query, $options: "i" } }, // Search by name
+        { barcode: { $regex: query, $options: "i" } } // Search by barcode
+      ]
+    };
 
-    // Modify this section to include managers along with admins
     if (user.role !== 'admin' && user.role !== 'manager') {
       // For non-admin and non-manager users, restrict search to the user's location
       searchCriteria.location = user.location;
@@ -709,7 +758,6 @@ router.get('/inventory/search/transfer', async (req, res) => {
       searchCriteria.location = locationQuery;
     }
 
-    // Apply inventory ID filter if provided
     if (inventoryId) {
       searchCriteria._id = inventoryId;
     }
@@ -727,7 +775,7 @@ router.get('/inventory/search/transfer', async (req, res) => {
 // api for sell order
 router.post('/orders', async (req, res) => {
   try {
-    const { userId, customerName, items, totalPrice, invoiceNumber, opNumber } = req.body; // Include userId in the request
+    const { userId, customerName, items, totalPrice, invoiceNumber, opNumber, note, buyInvoiceNumber } = req.body;
 
     // Find the user by userId
     const user = await mongoose.model('User').findById(userId);
@@ -742,7 +790,9 @@ router.post('/orders', async (req, res) => {
       items,
       totalPrice: totalPrice,
       invoiceNumber,
-      orderType: 'sell'
+      orderType: 'sell',
+      note, // Added field
+      buyInvoiceNumber // Added field
     });
 
     await newOrder.save();
@@ -758,7 +808,9 @@ router.post('/orders', async (req, res) => {
       opNumber: opNumber, // You can use the invoice number as operation number
       items: transactionItems,
       transactionType: 'sale',
-      userId
+      userId,
+      note, // Added field
+      buyInvoiceNumber // Added field
     });
 
     await transaction.save();
@@ -776,7 +828,7 @@ function generateInvoiceNumber() {
 
 router.post('/direct-sale', async (req, res) => {
   try {
-    const { userId, barcode, quantity, invoiceNumber } = req.body;
+    const { userId, barcode, quantity, invoiceNumber, note, buyInvoiceNumber } = req.body;
 
     // Find the user by userId
     const user = await mongoose.model('User').findById(userId);
@@ -803,7 +855,9 @@ router.post('/direct-sale', async (req, res) => {
       items: [orderItem],
       totalPrice: inventoryItem.price * quantity,
       invoiceNumber: invoiceNumber, // Implement this function as per your requirement
-      orderType: 'direct sell'
+      orderType: 'direct sell',
+      note, // Added field
+      buyInvoiceNumber // Added field
     });
 
     await newOrder.save();
@@ -866,7 +920,9 @@ router.post('/transfer-inventory', async (req, res) => {
       items: [{ inventoryItem: inventoryItem._id, quantity: quantity }],
       totalPrice: 0,
       invoiceNumber: generateInvoiceNumber(),
-      orderType: 'transfer'
+      orderType: 'transfer',
+      note, // Added field
+      buyInvoiceNumber // Added field
     });
 
     await transferOrder.save();
@@ -1208,27 +1264,66 @@ router.get('/api/transaction2/:opNumber', async (req, res) => {
       const opNumber = req.params.opNumber;
       const regexPattern = new RegExp('.*' + opNumber + '$');
 
-      // Find the transaction and populate the user and items
-      const transaction = await Transaction.findOne({ opNumber: { $regex: regexPattern } })
-        .populate({
-          path: 'userId',
-          select: 'username name role location email phone department hireDate -_id' // select fields you need, exclude sensitive data
-        })
-        .populate({
-          path: 'items.itemId',
-          select: 'name barcode quantity location price dateAdded group type -_id',
-          populate: { path: 'location', select: 'name address -_id' } // nested populate for location in inventory
-        }).exec();
+      // Find all transactions that match the regex pattern
+      const transactions = await Transaction.find({ opNumber: { $regex: regexPattern } })
+          .populate({
+              path: 'userId',
+              select: 'username name role location email phone department hireDate -_id' // select fields you need, exclude sensitive data
+          })
+          .populate({
+              path: 'items.itemId',
+              select: 'name barcode quantity location price dateAdded invoiceNumber note group type -_id',
+              populate: { path: 'location', select: 'name address -_id' } // nested populate for location in inventory
+          }).exec();
 
-      if (!transaction) {
-          return res.status(404).send('Transaction not found');
+      if (!transactions || transactions.length === 0) {
+          return res.status(404).send('No transactions found');
       }
 
-      res.json(transaction);
+      res.json(transactions);
   } catch (error) {
       res.status(500).send('Server error');
   }
 });
+
+router.get('/api/transactions/search', async (req, res) => {
+  try {
+    const { search, userId, locationId } = req.query;
+
+    // Fetch user details
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).send('User not found');
+    }
+
+    let isAuthorizedRole = user.role === 'admin' || user.role === 'manager';
+    let effectiveLocationId = isAuthorizedRole && locationId ? locationId : user.location;
+
+
+    // Find item by barcode in the Inventory collection
+    let query = { barcode: search };
+    if (effectiveLocationId) {
+      query.location = effectiveLocationId;
+    }
+
+    const items = await Inventory.find(query).populate('location');
+    const itemIds = items.map(item => item._id);
+
+    // Find transactions and populate location for each item
+    const transactions = await Transaction.find({
+      'items.itemId': { $in: itemIds }
+    }).populate({
+      path: 'items.itemId',
+      populate: { path: 'location' }
+    });
+
+    res.json(transactions);
+  } catch (error) {
+    console.log(error);
+    res.status(500).send(error.message);
+  }
+});
+
 
 
 

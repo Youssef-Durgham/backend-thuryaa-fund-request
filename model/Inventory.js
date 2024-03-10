@@ -9,6 +9,8 @@ const inventorySchema = new mongoose.Schema({
   dateAdded: { type: Date, required: false },
   group: { type: mongoose.Schema.Types.ObjectId, ref: 'Group', required: true },
   type: { type: mongoose.Schema.Types.ObjectId, ref: 'Type', required: true },
+  invoiceNumber: { type: String, required: false },
+  note: { type: String, required: false },
   // Additional fields as needed
 });
 
