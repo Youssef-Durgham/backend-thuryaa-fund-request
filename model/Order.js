@@ -38,6 +38,25 @@ const orderItemSchema = new mongoose.Schema({
     this.totalPrice = total;
     next();
   });
+  // orderSchema.pre('save', async function(next) {
+  //   let total = 0;
+  //   for (let item of this.items) {
+  //     const inventoryItem = await mongoose.model('Inventory').findById(item.inventoryItem);
+  //     if (!inventoryItem) {
+  //       throw new Error('Item not found in inventory');
+  //     }
+    
+  //     // Calculate total price
+  //     total += inventoryItem.price * item.quantity;
+    
+  //     // Decrease inventory quantity - Allow it to go negative
+  //     inventoryItem.quantity -= item.quantity;
+  //     await inventoryItem.save();
+  //   }
+  //   this.totalPrice = total;
+  //   next();
+  // });
+  
   
   module.exports = mongoose.model('Order', orderSchema);
   

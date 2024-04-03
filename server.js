@@ -81,14 +81,14 @@ mongoose
 // Function to insert data from Excel
 async function insertData(data) {
   // Define locations outside the loop
-  const karadaLocation = await findOrCreateModel(Location, { name: 'Karada' }, { name: 'Karada', address: 'Address for Karada' });
+  const karadaLocation = await findOrCreateModel(Location, { name: 'MAARAD' }, { name: 'MAARAD', address: 'Address for Karada' });
   const zafaraniaLocation = await findOrCreateModel(Location, { name: 'Zafarania' }, { name: 'Zafarania', address: 'Address for Zafarania' });
 
   for (const row of data) {
     const [
       itemBarcode,       // Item No.
-      karadaQuantity,    // Quantity in Karada
-      zafaraniaQuantity, // Quantity in Zafarania
+      zafaraniaQuantity,    // Quantity in Zafarania
+      karadaQuantity, // Quantity in Karada
       itemName,          // Item Description
       groupName,         // Group Name
       _,                 // Additional Identifier (currently unused)
@@ -132,6 +132,7 @@ async function insertData(data) {
 
     // Update the quantity of the existing inventory item in Karada
     existingKaradaInventoryItem.quantity += karadaQuantity;
+    console.log(existingKaradaInventoryItem)
     await existingKaradaInventoryItem.save();
 
     // Check if an inventory item with the same barcode and location already exists in Zafarania
@@ -162,7 +163,7 @@ async function insertData(data) {
   }
   
   // Example usage
-  const filePath = './lastdata.xlsx'; // Replace with your file path
+  const filePath = './lastdata4.xlsx'; // Replace with your file path
   readExcelData(filePath)
     .then(data => insertData(data))
     .then(() => console.log('Data inserted successfully'))
