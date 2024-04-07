@@ -1316,31 +1316,41 @@ router.get('/api/transactions/search', async (req, res) => {
   try {
     const { search, userId, locationId } = req.query;
 
+    // Format search term: Convert to uppercase
+    let formattedSearch = search.toUpperCase();
+
     // Fetch user details
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).send('User not found');
     }
 
-    let isAuthorizedRole = user.role === 'admin' || user.role === 'manager' || user._id.toString() === '660bab3f4b9bbc4a4da22992';
-    let effectiveLocationId = isAuthorizedRole && locationId ? locationId : user.location;
+    let effectiveLocationId = locationId ? locationId : user.location;
 
-    // Find item by exact barcode match in the Inventory collection
-    let query = { barcode: search };
-    if (effectiveLocationId) {
-      query.location = effectiveLocationId;
+    // Find item by barcode in the Inventory collection for the given location
+    let inventoryQuery = { barcode: formattedSearch, location: effectiveLocationId };
+    const items = await Inventory.find(inventoryQuery);
+    if (items.length === 0) {
+      return res.status(404).send('No items found for the given search criteria');
     }
+    const itemId = items[0]._id; // Assuming barcode is unique and only one item is expected
 
-    const items = await Inventory.find(query).populate('location');
-    const itemIds = items.map(item => item._id);
-
-    // Find transactions and populate location for each item
-    const transactions = await Transaction.find({
-      'items.itemId': { $in: itemIds }
+    // Find transactions that include the item
+    let transactions = await Transaction.find({
+      'items.itemId': itemId
     }).populate({
       path: 'items.itemId',
-      populate: { path: 'location' }
+      populate: { path: 'location' } // Populating location details
     });
+
+    // Filter out non-matching items from each transaction
+    transactions = transactions.map(transaction => {
+      transaction.items = transaction.items.filter(item => item.itemId && item.itemId.barcode === formattedSearch);
+      return transaction;
+    });
+
+    // Optionally, filter out transactions that have no items after filtering
+    transactions = transactions.filter(transaction => transaction.items.length > 0);
 
     res.json(transactions);
   } catch (error) {
@@ -1348,6 +1358,8 @@ router.get('/api/transactions/search', async (req, res) => {
     res.status(500).send(error.message);
   }
 });
+
+
 
 
 
