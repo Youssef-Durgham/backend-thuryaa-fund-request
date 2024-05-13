@@ -1,4 +1,4 @@
-service: SPCWMS
+service: course
 
 provider:
   name: aws
@@ -29,7 +29,7 @@ functions:
   main:
     handler: index.handler
     environment:
-      MONGO_URL: "mongodb+srv://yusif:Yusif123@cluster0.kwov7dn.mongodb.net/?retryWrites=true&w=majority"
+      MONGO_URL: "mongodb+srv://yusif:Qwertly123@cluster0.bzji4oe.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
       TOKEN_SECRET: "laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs"
       ADMIN_SECRET_KEY: "FoodoYusif123@"
       JWT_SECRET: "1234567890"

@@ -74,7 +74,7 @@
     "MainLogGroup": {
       "Type": "AWS::Logs::LogGroup",
       "Properties": {
-        "LogGroupName": "/aws/lambda/SPCWMS-dev-main"
+        "LogGroupName": "/aws/lambda/course-dev-main"
       }
     },
     "IamRoleLambdaExecution": {
@@ -102,7 +102,7 @@
               "Fn::Join": [
                 "-",
                 [
-                  "SPCWMS",
+                  "course",
                   "dev",
                   "lambda"
                 ]
@@ -120,7 +120,7 @@
                   ],
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/SPCWMS-dev*:*"
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/course-dev*:*"
                     }
                   ]
                 },
@@ -131,7 +131,7 @@
                   ],
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/SPCWMS-dev*:*:*"
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/course-dev*:*:*"
                     }
                   ]
                 },
@@ -155,7 +155,7 @@
           "Fn::Join": [
             "-",
             [
-              "SPCWMS",
+              "course",
               "dev",
               {
                 "Ref": "AWS::Region"
@@ -173,16 +173,16 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/SPCWMS/dev/1712474290751-2024-04-07T07:18:10.751Z/SPCWMS.zip"
+          "S3Key": "serverless/course/dev/1715519049861-2024-05-12T13:04:09.861Z/course.zip"
         },
         "Handler": "index.handler",
         "Runtime": "nodejs18.x",
-        "FunctionName": "SPCWMS-dev-main",
+        "FunctionName": "course-dev-main",
         "MemorySize": 3008,
         "Timeout": 900,
         "Environment": {
           "Variables": {
-            "MONGO_URL": "mongodb+srv://yusif:Yusif123@cluster0.kwov7dn.mongodb.net/?retryWrites=true&w=majority",
+            "MONGO_URL": "mongodb+srv://yusif:Qwertly123@cluster0.bzji4oe.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
             "TOKEN_SECRET": "laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs",
             "ADMIN_SECRET_KEY": "FoodoYusif123@",
             "JWT_SECRET": "1234567890",
@@ -215,7 +215,7 @@
     "ApiGatewayRestApi": {
       "Type": "AWS::ApiGateway::RestApi",
       "Properties": {
-        "Name": "dev-SPCWMS",
+        "Name": "dev-course",
         "BinaryMediaTypes": [
           "*/*"
         ],
@@ -288,7 +288,7 @@
         "MainLambdaPermissionApiGateway"
       ]
     },
-    "ApiGatewayDeployment1712474273371": {
+    "ApiGatewayDeployment1715519035940": {
       "Type": "AWS::ApiGateway::Deployment",
       "Properties": {
         "RestApiId": {
@@ -340,7 +340,7 @@
     "WebsocketsApi": {
       "Type": "AWS::ApiGatewayV2::Api",
       "Properties": {
-        "Name": "dev-SPCWMS-websockets",
+        "Name": "dev-course-websockets",
         "RouteSelectionExpression": "$request.body.action",
         "Description": "Serverless Websockets",
         "ProtocolType": "WEBSOCKET"
@@ -467,11 +467,11 @@
         "StageName": "dev",
         "Description": "Serverless Websockets",
         "DeploymentId": {
-          "Ref": "WebsocketsDeploymentZo0faNXqBt6KLTTDLQUrLFEkANEEeOMeeW4Z2WEqaaM"
+          "Ref": "WebsocketsDeploymentTlcdZckYdIOi5kbh9Qo6sW2NWGA18GMfSbB27VzQG8"
         }
       }
     },
-    "WebsocketsDeploymentZo0faNXqBt6KLTTDLQUrLFEkANEEeOMeeW4Z2WEqaaM": {
+    "WebsocketsDeploymentTlcdZckYdIOi5kbh9Qo6sW2NWGA18GMfSbB27VzQG8": {
       "Type": "AWS::ApiGatewayV2::Deployment",
       "DependsOn": [
         "SdefaultWebsocketsRoute",
@@ -492,7 +492,7 @@
         "Ref": "ServerlessDeploymentBucket"
       },
       "Export": {
-        "Name": "sls-SPCWMS-dev-ServerlessDeploymentBucketName"
+        "Name": "sls-course-dev-ServerlessDeploymentBucketName"
       }
     },
     "ServiceEndpoint": {
@@ -518,7 +518,7 @@
         ]
       },
       "Export": {
-        "Name": "sls-SPCWMS-dev-ServiceEndpoint"
+        "Name": "sls-course-dev-ServiceEndpoint"
       }
     },
     "ServiceEndpointWebsocket": {
@@ -544,7 +544,7 @@
         ]
       },
       "Export": {
-        "Name": "sls-SPCWMS-dev-ServiceEndpointWebsocket"
+        "Name": "sls-course-dev-ServiceEndpointWebsocket"
       }
     }
   }
