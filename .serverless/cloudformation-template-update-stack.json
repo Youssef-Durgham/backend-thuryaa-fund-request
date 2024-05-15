@@ -173,7 +173,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/course/dev/1715519049861-2024-05-12T13:04:09.861Z/course.zip"
+          "S3Key": "serverless/course/dev/1715769657399-2024-05-15T10:40:57.399Z/course.zip"
         },
         "Handler": "index.handler",
         "Runtime": "nodejs18.x",
@@ -288,7 +288,7 @@
         "MainLambdaPermissionApiGateway"
       ]
     },
-    "ApiGatewayDeployment1715519035940": {
+    "ApiGatewayDeployment1715769643581": {
       "Type": "AWS::ApiGateway::Deployment",
       "Properties": {
         "RestApiId": {

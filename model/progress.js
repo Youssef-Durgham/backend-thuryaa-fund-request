@@ -1,12 +1,13 @@
 const mongoose = require('mongoose');
 
-const progressSchema = new mongoose.Schema({
+const userProgressSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true },
-  modulesCompleted: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Module' }],
-  overallProgress: { type: Number, default: 0 } // percentage of the course completed
+  video: { type: mongoose.Schema.Types.ObjectId, ref: 'VideoContent', required: true },
+  progressPercentage: { type: Number, required: true }, // 0 to 100
+  progressMinutes: { type: Number, required: true } // in minutes
 });
 
-const Progress = mongoose.model('Progress', progressSchema);
+const UserProgress = mongoose.model('UserProgress', userProgressSchema);
 
-module.exports = Progress;
+module.exports = UserProgress;

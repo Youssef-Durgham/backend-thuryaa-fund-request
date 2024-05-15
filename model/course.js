@@ -15,6 +15,7 @@ const videoContentSchema = new mongoose.Schema({
   videoTitle: { type: String, required: true },
   videoUrl: { type: String, required: true },
   documents: [String], // URLs to documents
+  duration: { type: Number, required: true }, // Duration in seconds
   questions: [questionSchema] // Using the new questionSchema for quiz questions
 });
 
