@@ -12,6 +12,7 @@ const comment = require("./routes/Comment");
 const course = require("./routes/Course");
 const progress = require("./routes/Progress");
 const quiz = require("./routes/Quiz");
+const zaincash = require("./routes/ZainCash");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const serverless = require('serverless-http');
@@ -77,6 +78,7 @@ app.use("/comment", comment);
 app.use("/course", course);
 app.use("/progress", progress);
 app.use("/quiz", quiz);
+app.use("/zaincash", zaincash);
 
 // Lambda function handler
 module.exports.handler = (event, context, callback) => {
