@@ -19,6 +19,7 @@
     "pm2": "^5.2.2",
     "read-excel-file": "^5.7.1",
     "request": "^2.88.2",
-    "serverless-http": "^3.2.0"
+    "serverless-http": "^3.2.0",
+    "uuid": "^9.0.1"
   }
 }

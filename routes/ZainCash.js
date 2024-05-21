@@ -3,7 +3,9 @@ const express = require('express');
 const app = express();
 const jwt = require('jsonwebtoken');
 const request = require('request');
+const Order = require('../model/order');
 const router = require("express").Router();
+const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
 //  If the environment if it was on production or on testing mode
@@ -15,55 +17,54 @@ let requestUrl = 'https://test.zaincash.iq/transaction/pay?id=';
 //   requestUrl = 'https://api.zaincash.iq/transaction/pay?id=';
 // }
 
-//  Set the serviceType (Any text you like such as your website name)
-const serviceType = "book";
-
 //after a successful or failed order, the user will redirect to this url
 const redirectUrl = 'https://codeklab.com/subscription/verify';
-// const redirectUrl = 'https://codeklab.com/subscription/verify';
 
-/* ------------------------------------------------------------------------------
-Notes about redirectionUrl:
-in this url, the api will add a new parameter (token) to its end like:
-https://example.com/redirect?token=XXXXXXXXXXXXXX
-------------------------------------------------------------------------------  */
+//  Handeling the redierct
+const secret = "$2y$10$hBbAZo2GfSSvyqAyV2SaqOfYewgYpfR1O19gIh4SqyGWdmySZYPuS";
 
 //  Handeling the payment request
-router.get('/request', (req, res) => {
-  //  Set the amount to 250 if there is no amount in the request (For testing)
-  //  it has to be more that 250 IQD
-  const amount = 449000;
+router.get('/request', async (req, res) => {
+  const { amount, serviceType } = req.query;
 
-  //  Set an order id (This is usualy should be the order id in your sys DB)
-  const orderId = "1999";
+  if (!amount || amount <= 250) {
+    return res.status(400).send("Amount must be greater than 250 IQD");
+  }
 
-  //  Set the token expire time
+  if (!serviceType) {
+    return res.status(400).send("Service type is required");
+  }
+
+  // Generate an order id
+  const orderId = uuidv4();
+
+  // Set the token expire time
   const time = Date.now();
 
-  //  Building the transaction data to be encoded in a JWT token
+  // Building the transaction data to be encoded in a JWT token
   const data = {
-    'amount': amount,
-    'serviceType': serviceType,
-    'msisdn': "9647835077893",
-    'orderId': orderId,
-    'redirectUrl': redirectUrl,
-    'iat': time,
-    'exp': time + 60 * 60 * 4
+    amount,
+    serviceType,
+    msisdn: "9647835077893",
+    orderId,
+    redirectUrl: redirectUrl,
+    iat: time,
+    exp: time + 60 * 60 * 4
   };
 
-  //  Encoding the datd
-  const token = jwt.sign(data, "$2y$10$hBbAZo2GfSSvyqAyV2SaqOfYewgYpfR1O19gIh4SqyGWdmySZYPuS");
+  // Encoding the data
+  const token = jwt.sign(data, secret);
 
-  //  Preparing the payment data to be sent to ZC api
+  // Preparing the payment data to be sent to ZC API
   const postData = {
-    'token': token,
-    'merchantId': "5ffacf6612b5777c6d44266f",
-    'lang': "ar"
+    token,
+    merchantId: "5ffacf6612b5777c6d44266f",
+    lang: "ar"
   };
 
   console.log(postData);
 
-  //  Request Option
+  // Request Options
   const requestOptions = {
     uri: initUrl,
     body: JSON.stringify(postData),
@@ -73,21 +74,38 @@ router.get('/request', (req, res) => {
     }
   };
 
-  //  Initilizing a ZC order by sending a request with the tokens
-  request(requestOptions, function (error, response) {
-    //  Getting the operation id
-    const OperationId = JSON.parse(response.body).id;
-    console.log(JSON.parse(response.body));
-    //  Redirect the user to ZC payment Page
-    res.writeHead(302, {
-      'Location': requestUrl + OperationId
-    });
-    res.end();
-  });
-});
+  try {
+    // Initializing a ZC order by sending a request with the tokens
+    request(requestOptions, async function (error, response) {
+      if (error) {
+        return res.status(500).send("Error initializing ZC order");
+      }
+      const responseBody = JSON.parse(response.body);
+      const OperationId = responseBody.id;
 
-//  Handeling the redierct
-const secret = "$2y$10$hBbAZo2GfSSvyqAyV2SaqOfYewgYpfR1O19gIh4SqyGWdmySZYPuS";
+      // Save order to MongoDB
+      const order = new Order({
+        amount,
+        serviceType,
+        orderId,
+        OperationId,
+        createdAt: new Date()
+      });
+
+      await order.save();
+
+      console.log(responseBody);
+      // Redirect the user to ZC payment Page
+      res.writeHead(302, {
+        'Location': requestUrl + OperationId
+      });
+      res.end();
+    });
+  } catch (error) {
+    console.log(error)
+    res.status(500).send("Internal Server Error");
+  }
+});
 
 // Endpoint to decode the JWT token
 router.post('/decode-token', (req, res) => {
