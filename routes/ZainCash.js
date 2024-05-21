@@ -20,6 +20,7 @@ const serviceType = "book";
 
 //after a successful or failed order, the user will redirect to this url
 const redirectUrl = 'https://codeklab.com/subscription/verify';
+// const redirectUrl = 'https://codeklab.com/subscription/verify';
 
 /* ------------------------------------------------------------------------------
 Notes about redirectionUrl:
@@ -85,7 +86,6 @@ router.get('/request', (req, res) => {
   });
 });
 
-
 //  Handeling the redierct
 const secret = "$2y$10$hBbAZo2GfSSvyqAyV2SaqOfYewgYpfR1O19gIh4SqyGWdmySZYPuS";
 
@@ -98,6 +98,50 @@ router.post('/decode-token', (req, res) => {
         res.json({ decoded });
     } catch (error) {
         res.status(400).json({ error: 'Invalid token' });
+    }
+});
+
+//  Handeling the redierct
+router.get('redirect', (req, res) => {
+    const token = req.body.token;
+    if (token) {
+      try {
+        var decoded = jwt.verify(token, "$2y$10$hBbAZo2GfSSvyqAyV2SaqOfYewgYpfR1O19gIh4SqyGWdmySZYPuS");
+      } catch (err) {
+        // err
+      }
+      if (decoded.status == 'success') {
+        // Do whatever you like
+      } else {
+        //  Do other things
+      }
+    }
+});
+
+router.post('/transaction', async (req, res) => {
+    const { id } = req.body;
+  
+    const data = {
+      id: id,
+      msisdn: "9647835077893",
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 4,
+    };
+  
+    const newtoken = jwt.sign(data, "$2y$10$hBbAZo2GfSSvyqAyV2SaqOfYewgYpfR1O19gIh4SqyGWdmySZYPuS", { algorithm: 'HS256' });
+  
+    const data_to_post = {
+      token: newtoken,
+      merchantId: "5ffacf6612b5777c6d44266f",
+    };
+  
+    try {
+      const response = await axios.post('https://test.zaincash.iq/transaction/get', data_to_post, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      res.json(response.data);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
     }
 });
 
