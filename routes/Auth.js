@@ -205,7 +205,7 @@ router.post('/register-user', async (req, res) => {
         message: 'Login successful. Notification sent.'
       });
     } catch (error) {
-      console.error('Login error:', error);
+      console.log('Login error:', error);
       res.status(400).send({ error: 'An error occurred while trying to log in.' });
     }
   });
