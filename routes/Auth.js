@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const UserSignIn = require("../model/usersignin.js");
 
 
+
   // api for Registration
   router.post('/register-user', async (req, res) => {
   const { username, email, password } = req.body;
@@ -51,7 +52,6 @@ const UserSignIn = require("../model/usersignin.js");
   }
   });
   
-
   //api for verify acc
   router.post('/verify', async (req, res) => {
     try {
@@ -88,7 +88,6 @@ const UserSignIn = require("../model/usersignin.js");
     }
   });
   
-  
   // api for resend verify
   router.post('/resend-verification', async (req, res) => {
     try {
@@ -116,7 +115,6 @@ const UserSignIn = require("../model/usersignin.js");
       res.status(500).send({ error: 'Error resending the verification email.' });
     }
   });
-  
 
   // api for reset password request
   router.post('/requestReset', async (req, res) => {
@@ -163,7 +161,6 @@ const UserSignIn = require("../model/usersignin.js");
   
     res.send('Your password has been successfully reset');
   });
-  
   
   // api for login
   router.post('/login', async (req, res) => {
@@ -218,7 +215,6 @@ const UserSignIn = require("../model/usersignin.js");
     }
   });
 
-  
   // func to send email for login attemp
   async function logLoginAttempt(userId, ip, userAgent) {
     const newLoginAttempt = new UserSignIn({
