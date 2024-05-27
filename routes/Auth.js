@@ -7,45 +7,48 @@ const crypto = require('crypto');
 const UserSignIn = require("../model/usersignin.js");
 
 
-// api for Registration
-router.post('/register-user', async (req, res) => {
-    const { username, email, password } = req.body;
-  
-    try {
-      // Check if the email is already in use and the account is not verified
-      const existingUser = await User.findOne({ email: email });
-      if (existingUser && existingUser.isVerified) {
-        return res.status(409).send({ error: 'Email already in use.' });
-      }
-  
-      // Generate a new verification token
-      const token = crypto.randomBytes(32).toString('hex');
-  
-      // Update existing user or create new one if not found
-      const userData = {
-        username,
-        email,
-        password: password,
-        verificationCode: token,
-        verificationCodeExpires: new Date(Date.now() + 3600000), // 1 hour from now
-        isVerified: false
-      };
-  
-      if (existingUser) {
-        await User.updateOne({ email: email }, userData);
-      } else {
-        const user = new User(userData);
-        await user.save();
-      }
-  
-      // Send a verification email to the user
-      await VerificationEmail(userData, token);
-  
-      res.status(201).send({ user: { username, email }, message: 'Verification email sent. Please check your email.' });
-    } catch (error) {
-      console.log('Registration Error:', error);
-      res.status(500).send({ error: 'Internal server error. Please try again later.' });
+  // api for Registration
+  router.post('/register-user', async (req, res) => {
+  const { username, email, password } = req.body;
+
+  try {
+    // Check if the email is already in use
+    const existingUser = await User.findOne({ email: email });
+    
+    // Handle existing user who is verified
+    if (existingUser && existingUser.isVerified) {
+      return res.status(409).send({ error: 'Email already in use.' });
     }
+
+    // Generate a new verification token
+    const token = crypto.randomBytes(32).toString('hex');
+    const genpassword = await bcrypt.hash(password, 10);
+    const userData = {
+      username,
+      email,
+      password: genpassword,
+      verificationCode: token,
+      verificationCodeExpires: new Date(Date.now() + 3600000), // 1 hour from now
+      isVerified: false
+    };
+
+    if (existingUser && !existingUser.isVerified) {
+      // Update existing user if not verified
+      await User.updateOne({ email: email }, userData);
+    } else {
+      // Create a new user if not found
+      const user = new User(userData);
+      await user.save();
+    }
+
+    // Send a verification email to the user
+    await VerificationEmail(userData, token);
+
+    res.status(201).send({ user: { username, email }, message: 'Verification email sent. Please check your email.' });
+  } catch (error) {
+    console.log('Registration Error:', error);
+    res.status(500).send({ error: 'Internal server error. Please try again later.' });
+  }
   });
   
 
@@ -168,13 +171,18 @@ router.post('/register-user', async (req, res) => {
     const ip = req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.connection.remoteAddress;
   
     try {
-      // Attempt to find a verified user
-      const user = await User.findOne({ email: email, isEmailVerified: true });
-  
-      // If no user found, treat as incorrect login attempt
-      if (!user) {
-        return res.status(401).send({ error: 'Incorrect email or password.' });
-      }
+      // Attempt to find the user
+    const user = await User.findOne({ email: email });
+
+    // If no user found, treat as incorrect login attempt
+    if (!user) {
+      return res.status(401).send({ error: 'Incorrect email or password.' });
+    }
+
+    // Check if the email is verified
+    if (!user.isVerified) {
+      return res.status(401).send({ error: 'Email not verified yet.' });
+    }
   
       // Check password validity
       const passwordIsValid = await bcrypt.compare(password, user.password);
@@ -209,6 +217,7 @@ router.post('/register-user', async (req, res) => {
       res.status(400).send({ error: 'An error occurred while trying to log in.' });
     }
   });
+
   
   // func to send email for login attemp
   async function logLoginAttempt(userId, ip, userAgent) {
