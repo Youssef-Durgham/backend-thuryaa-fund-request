@@ -46,9 +46,12 @@ const discountSchema = new mongoose.Schema({
 const pricingPlanSchema = new mongoose.Schema({
   planName: { type: String, required: true },
   price: { type: Number, required: true },
-  features: [String] // List of features included in this plan
+  projectFeatures: [String], // List of project features included in this plan
+  basicFeatures: [String], // List of basic features included in this plan
+  bonusFeatures: [String], // List of bonus features included in this plan
+  description: { type: String, required: true }, // Description for the plan
+  texts: [String] // Array of additional texts
 });
-
 
 const courseSchema = new mongoose.Schema({
   title: { type: String, required: true },
@@ -64,6 +67,7 @@ const courseSchema = new mongoose.Schema({
   sections: [sectionSchema],
   coupons: [couponSchema],
   imageUrl: { type: String, required: false },
+  postStatus: { type: String, enum: ['edit', 'activated'], default: 'edit' }
 });
 
 // Middleware to update the updatedAt field and check for discounts

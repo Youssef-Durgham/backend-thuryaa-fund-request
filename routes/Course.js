@@ -7,22 +7,35 @@ const Answer = require("../model/answer.js");
 
 // create new course
 router.post('/courses', async (req, res) => {
-    try {
-      const { title, description, category, imageUrl, pricingPlans, isActive, instructor } = req.body;
-      const newCourse = new Course({
-        title,
-        description,
-        category,
-        imageUrl,
-        pricingPlans,
-        isActive,
-        instructor
-      });
-      await newCourse.save();
-      res.status(201).send(newCourse);
-    } catch (error) {
-      res.status(400).send(error);
-    }
+  try {
+    const { title, description, category, imageUrl, pricingPlans, isActive, instructor } = req.body;
+
+    // Validate pricingPlans to ensure they contain the new fields
+    const validatedPricingPlans = pricingPlans.map(plan => ({
+      planName: plan.planName,
+      price: plan.price,
+      projectFeatures: plan.projectFeatures, // Ensure project features are included
+      basicFeatures: plan.basicFeatures, // Ensure basic features are included
+      bonusFeatures: plan.bonusFeatures, // Ensure bonus features are included
+      description: plan.description, // Ensure description is included
+      texts: plan.texts // Ensure texts array is included
+    }));
+
+    const newCourse = new Course({
+      title,
+      description,
+      category,
+      imageUrl,
+      pricingPlans: validatedPricingPlans,
+      isActive,
+      instructor
+    });
+
+    await newCourse.save();
+    res.status(201).send(newCourse);
+  } catch (error) {
+    res.status(400).send(error);
+  }
 });
   
   // create new sections in the course
@@ -237,6 +250,7 @@ router.get('/pricing/course/:id', async (req, res) => {
 
       return {
         planName: plan.planName,
+        features: plan.features,
         originalPrice: plan.price,
         discount: discountValue,
         discountedPrice: discountedPrice.toFixed(2),
