@@ -5,14 +5,8 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const app = express();
 dotenv.config();
-const home = require("./routes/Home");
 const auth = require("./routes/Auth");
-const cert = require("./routes/Certificate");
-const comment = require("./routes/Comment");
-const course = require("./routes/Course");
-const progress = require("./routes/Progress");
-const quiz = require("./routes/Quiz");
-const zaincash = require("./routes/ZainCash");
+
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const serverless = require('serverless-http');
@@ -71,14 +65,7 @@ app.use(async (req, res, next) => {
 });
 
 //Route Middlewares
-app.use("/", home);
 app.use("/auth", auth);
-app.use("/cert", cert);
-app.use("/comment", comment);
-app.use("/course", course);
-app.use("/progress", progress);
-app.use("/quiz", quiz);
-app.use("/zaincash", zaincash);
 
 // Lambda function handler
 module.exports.handler = (event, context, callback) => {
