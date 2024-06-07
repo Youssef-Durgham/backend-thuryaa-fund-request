@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 // Customer Schema
 const customerSchema = new Schema({
@@ -19,12 +19,6 @@ customerSchema.pre('save', async function (next) {
   this.password = await bcrypt.hash(this.password, 10);
   next();
 });
-
-// Role Schema
-const roleSchema = new Schema({
-    name: { type: String, required: true, unique: true },
-    permissions: { type: [String], required: true } // e.g., ['assign_roles', 'delete_roles']
-  });
   
   // Admin Schema
   const adminSchema = new Schema({
@@ -43,8 +37,7 @@ const roleSchema = new Schema({
     next();
   });
 
-const Customer = mongoose.model('Customer', customerSchema);
-const Admin = mongoose.model('Admin', adminSchema);
-const Role = mongoose.model('Role', roleSchema);
+  const Customer = mongoose.model('Customer', customerSchema);
+  const Admin = mongoose.model('Admin', adminSchema);
 
-module.exports = { Customer, Admin, Role };
+module.exports = { Customer, Admin };

@@ -5,7 +5,12 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const app = express();
 dotenv.config();
-const auth = require("./routes/Auth");
+const AdminAssignRole = require("./routes/AdminAssignRole");
+const AdminLogin = require("./routes/AdminLogin");
+const AdminRoleList = require("./routes/AdminRole");
+const AdminUsersList = require("./routes/AdminUsersList");
+const CustomerLogin = require("./routes/CustomerLogin");
+const CustomerUsersList = require("./routes/CustomerUsersList");
 
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
@@ -65,7 +70,12 @@ app.use(async (req, res, next) => {
 });
 
 //Route Middlewares
-app.use("/auth", auth);
+app.use("/AdminAssignRole", AdminAssignRole);
+app.use("/AdminLogin", AdminLogin);
+app.use("/AdminRoleList", AdminRoleList);
+app.use("/AdminUsersList", AdminUsersList);
+app.use("/CustomerLogin", CustomerLogin);
+app.use("/CustomerUsersList", CustomerUsersList);
 
 // Lambda function handler
 module.exports.handler = (event, context, callback) => {

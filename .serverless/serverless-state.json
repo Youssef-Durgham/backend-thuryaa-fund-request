@@ -1,8 +1,8 @@
 {
   "service": {
-    "service": "course",
+    "service": "e-commerce-future",
     "serviceObject": {
-      "name": "course"
+      "name": "e-commerce-future"
     },
     "provider": {
       "name": "aws",
@@ -96,7 +96,7 @@
           "MainLogGroup": {
             "Type": "AWS::Logs::LogGroup",
             "Properties": {
-              "LogGroupName": "/aws/lambda/course-dev-main"
+              "LogGroupName": "/aws/lambda/e-commerce-future-dev-main"
             }
           },
           "IamRoleLambdaExecution": {
@@ -124,7 +124,7 @@
                     "Fn::Join": [
                       "-",
                       [
-                        "course",
+                        "e-commerce-future",
                         "dev",
                         "lambda"
                       ]
@@ -142,7 +142,7 @@
                         ],
                         "Resource": [
                           {
-                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/course-dev*:*"
+                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/e-commerce-future-dev*:*"
                           }
                         ]
                       },
@@ -153,7 +153,7 @@
                         ],
                         "Resource": [
                           {
-                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/course-dev*:*:*"
+                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/e-commerce-future-dev*:*:*"
                           }
                         ]
                       },
@@ -177,7 +177,7 @@
                 "Fn::Join": [
                   "-",
                   [
-                    "course",
+                    "e-commerce-future",
                     "dev",
                     {
                       "Ref": "AWS::Region"
@@ -195,16 +195,16 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/course/dev/1716900933163-2024-05-28T12:55:33.163Z/course.zip"
+                "S3Key": "serverless/e-commerce-future/dev/1717799107300-2024-06-07T22:25:07.300Z/e-commerce-future.zip"
               },
               "Handler": "index.handler",
               "Runtime": "nodejs18.x",
-              "FunctionName": "course-dev-main",
+              "FunctionName": "e-commerce-future-dev-main",
               "MemorySize": 3008,
               "Timeout": 900,
               "Environment": {
                 "Variables": {
-                  "MONGO_URL": "mongodb+srv://yusif:Qwertly123@cluster0.bzji4oe.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
+                  "MONGO_URL": "mongodb+srv://yusif:yusif@cluster0.twzfinb.mongodb.net/?retryWrites=true&w=majority",
                   "TOKEN_SECRET": "laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs",
                   "ADMIN_SECRET_KEY": "FoodoYusif123@",
                   "JWT_SECRET": "1234567890",
@@ -237,7 +237,7 @@
           "ApiGatewayRestApi": {
             "Type": "AWS::ApiGateway::RestApi",
             "Properties": {
-              "Name": "dev-course",
+              "Name": "dev-e-commerce-future",
               "BinaryMediaTypes": [
                 "*/*"
               ],
@@ -310,7 +310,7 @@
               "MainLambdaPermissionApiGateway"
             ]
           },
-          "ApiGatewayDeployment1716900918239": {
+          "ApiGatewayDeployment1717799092077": {
             "Type": "AWS::ApiGateway::Deployment",
             "Properties": {
               "RestApiId": {
@@ -362,7 +362,7 @@
           "WebsocketsApi": {
             "Type": "AWS::ApiGatewayV2::Api",
             "Properties": {
-              "Name": "dev-course-websockets",
+              "Name": "dev-e-commerce-future-websockets",
               "RouteSelectionExpression": "$request.body.action",
               "Description": "Serverless Websockets",
               "ProtocolType": "WEBSOCKET"
@@ -489,11 +489,11 @@
               "StageName": "dev",
               "Description": "Serverless Websockets",
               "DeploymentId": {
-                "Ref": "WebsocketsDeploymentTlcdZckYdIOi5kbh9Qo6sW2NWGA18GMfSbB27VzQG8"
+                "Ref": "WebsocketsDeploymentZmmyK0OUbp2zfujpxRed3HJUZnozoBphAgGYtpKFc"
               }
             }
           },
-          "WebsocketsDeploymentTlcdZckYdIOi5kbh9Qo6sW2NWGA18GMfSbB27VzQG8": {
+          "WebsocketsDeploymentZmmyK0OUbp2zfujpxRed3HJUZnozoBphAgGYtpKFc": {
             "Type": "AWS::ApiGatewayV2::Deployment",
             "DependsOn": [
               "SdefaultWebsocketsRoute",
@@ -514,7 +514,7 @@
               "Ref": "ServerlessDeploymentBucket"
             },
             "Export": {
-              "Name": "sls-course-dev-ServerlessDeploymentBucketName"
+              "Name": "sls-e-commerce-future-dev-ServerlessDeploymentBucketName"
             }
           },
           "ServiceEndpoint": {
@@ -540,7 +540,7 @@
               ]
             },
             "Export": {
-              "Name": "sls-course-dev-ServiceEndpoint"
+              "Name": "sls-e-commerce-future-dev-ServiceEndpoint"
             }
           },
           "ServiceEndpointWebsocket": {
@@ -566,7 +566,7 @@
               ]
             },
             "Export": {
-              "Name": "sls-course-dev-ServiceEndpointWebsocket"
+              "Name": "sls-e-commerce-future-dev-ServiceEndpointWebsocket"
             }
           }
         }
@@ -675,7 +675,7 @@
       "main": {
         "handler": "index.handler",
         "environment": {
-          "MONGO_URL": "mongodb+srv://yusif:Qwertly123@cluster0.bzji4oe.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
+          "MONGO_URL": "mongodb+srv://yusif:yusif@cluster0.twzfinb.mongodb.net/?retryWrites=true&w=majority",
           "TOKEN_SECRET": "laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs",
           "ADMIN_SECRET_KEY": "FoodoYusif123@",
           "JWT_SECRET": "1234567890",
@@ -717,7 +717,7 @@
             }
           }
         ],
-        "name": "course-dev-main",
+        "name": "e-commerce-future-dev-main",
         "package": {},
         "memory": 3008,
         "timeout": 900,
@@ -728,7 +728,7 @@
     "configValidationMode": "warn",
     "serviceFilename": "serverless.yml",
     "initialServerlessConfig": {
-      "service": "course",
+      "service": "e-commerce-future",
       "provider": {
         "$ref": "$[\"service\"][\"provider\"]"
       },
@@ -741,10 +741,10 @@
     },
     "layers": {},
     "isDashboardMonitoringPreconfigured": false,
-    "artifact": "/Volumes/programming_folders/my codek lab site/backend/.serverless/course.zip"
+    "artifact": "/Volumes/programming_folders/ecommerce/backend/.serverless/e-commerce-future.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/course/dev/1716900933163-2024-05-28T12:55:33.163Z",
-    "artifact": "course.zip"
+    "artifactDirectoryName": "serverless/e-commerce-future/dev/1717799107300-2024-06-07T22:25:07.300Z",
+    "artifact": "e-commerce-future.zip"
   }
 }

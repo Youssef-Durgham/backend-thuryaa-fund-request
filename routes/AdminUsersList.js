@@ -1,13 +1,48 @@
 const express = require('express');
 const { Admin } = require('../model/Users'); // Adjust the path as needed
 const jwt = require('jsonwebtoken');
-const ActivityLog = require('../model/ActivityLog');
 const LoginHistory = require('../model/LoginHistory');
+const ActivityLog = require('../model/ActivityLog');
 
 const router = express.Router();
 
+// Middleware to check permissions
+const checkPermission = (permission) => {
+  return async (req, res, next) => {
+    console.log(req.headers.authorization, "by func");
+    try {
+      const token = req.headers.authorization.split(' ')[1];
+      console.log(token);
+      
+      const decoded = jwt.verify(token, 'your_jwt_secret');
+      console.log(decoded);
+      console.log(permission, token, decoded);
+
+      const admin = await Admin.findById(decoded.id).populate('roles');
+
+      // Check permissions in directly assigned roles
+      const hasPermission = admin.roles.some(role =>
+        role.permissions.includes(permission)
+      );
+
+      console.log(permission, token, decoded, admin, hasPermission);
+
+      if (!hasPermission) {
+        return res.status(403).json({ message: 'Forbidden' });
+      }
+
+      req.adminId = decoded.id; // Store the admin ID in the request object
+      next();
+    } catch (error) {
+      console.log("JWT Verification Error:", error.message);
+      console.log(error.stack);
+      res.status(401).json({ message: 'Unauthorized', error: error.message });
+    }
+  };
+};
+
 // Get Admin User List
-router.get('/admin-users-list', async (req, res) => {
+router.get('/admin-users-list', checkPermission('List_Admin_Users'), async (req, res) => {
   const { page = 1 } = req.query; // Default to page 1 if not specified
 
   const limit = 50; // Entries per page

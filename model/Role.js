@@ -3,9 +3,15 @@ const Schema = mongoose.Schema;
 
 const roleSchema = new Schema({
   name: { type: String, required: true, unique: true },
-  permissions: { type: [String], required: true } // e.g., ['assign_roles', 'delete_roles']
+  permissions: { type: [String], default: [] } // Make permissions optional and default to an empty array
+});
+
+const groupSchema = new Schema({
+  groupName: { type: String, required: true, unique: true },
+  roles: [{ type: Schema.Types.ObjectId, ref: 'Role' }]
 });
 
 const Role = mongoose.model('Role', roleSchema);
+const RoleGroup = mongoose.model('RoleGroup', groupSchema);
 
-module.exports = Role;
+module.exports = { Role, RoleGroup };
