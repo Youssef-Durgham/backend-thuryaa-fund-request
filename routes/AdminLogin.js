@@ -1,10 +1,10 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { Admin, Role } = require('../model/Users'); // Adjust the path as needed
+const { Admin } = require('../model/Users'); // Adjust the path as needed
 const LoginHistory = require('../model/LoginHistory');
 const ActivityLog = require('../model/ActivityLog');
-const { RoleGroup } = require('../model/Role');
+const { RoleGroup, Role } = require('../model/Role');
 
 const router = express.Router();
 
@@ -16,38 +16,40 @@ const HARD_CODED_PASS = 'admin123';
 // Middleware to check permissions
 const checkPermission = (permission) => {
   return async (req, res, next) => {
+    console.log(req.headers.authorization, "by func");
     try {
       const token = req.headers.authorization.split(' ')[1];
+      console.log(token);
+      
       const decoded = jwt.verify(token, 'your_jwt_secret');
-      const admin = await Admin.findById(decoded.id).populate({
-        path: 'roleGroups',
-        populate: { path: 'roles' }
-      }).populate('roles');
+      console.log(decoded);
+      console.log(permission, token, decoded);
 
-      // Check permissions in role groups
-      const hasGroupPermission = admin.roleGroups.some(group =>
-        group.roles.some(role => role.permissions.includes(permission))
-      );
+      const admin = await Admin.findById(decoded.id).populate('roles');
 
       // Check permissions in directly assigned roles
-      const hasDirectPermission = admin.roles.some(role =>
+      const hasPermission = admin.roles.some(role =>
         role.permissions.includes(permission)
       );
 
-      if (!hasGroupPermission && !hasDirectPermission) {
+      console.log(permission, token, decoded, admin, hasPermission);
+
+      if (!hasPermission) {
         return res.status(403).json({ message: 'Forbidden' });
       }
 
       req.adminId = decoded.id; // Store the admin ID in the request object
       next();
     } catch (error) {
-      res.status(401).json({ message: 'Unauthorized', error });
+      console.log("JWT Verification Error:", error.message);
+      console.log(error.stack);
+      res.status(401).json({ message: 'Unauthorized', error: error.message });
     }
   };
 };
 
 // Create admin account
-router.post('/create-admin/sys', async (req, res) => {
+router.post('/create-admin/sys', checkPermission('Create_admin'), async (req, res) => {
   const { phone, name, password } = req.body;
   try {
     let admin = await Admin.findOne({ phone });

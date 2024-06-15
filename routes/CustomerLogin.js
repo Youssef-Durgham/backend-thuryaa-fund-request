@@ -54,7 +54,12 @@ router.post('/register', async (req, res) => {
       }
     } else {
       // If customer does not exist, create a new one
-      customer = new Customer({ phone, name, password, location, otp, otpExpiresAt: Date.now() + otpExpiryTime });
+      // Ensure phone number format is correct
+  let formattedPhone = phone;
+  if (formattedPhone.startsWith('9640')) {
+    formattedPhone = '964' + formattedPhone.slice(4);
+  }
+      customer = new Customer({ phone: formattedPhone, name, password, location, otp, otpExpiresAt: Date.now() + otpExpiryTime });
       await customer.save();
       
       await sendOtp(phone, otp);
@@ -79,7 +84,8 @@ router.post('/verify-otp', async (req, res) => {
     customer.otp = undefined;
     customer.otpExpiresAt = undefined;
     await customer.save();
-    res.status(200).json({ message: 'Customer activated successfully' });
+    const token = jwt.sign({ id: customer._id, userType: 'customer' }, 'your_jwt_secret', { expiresIn: '365d' });
+    res.status(200).json({ token });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error });
   }
@@ -96,7 +102,7 @@ router.post('/login', async (req, res) => {
     if (!customer.isActivated) {
       return res.status(403).json({ message: 'Account not activated. Please verify OTP.' });
     }
-    const token = jwt.sign({ id: customer._id, userType: 'customer' }, 'your_jwt_secret', { expiresIn: '1h' });
+    const token = jwt.sign({ id: customer._id, userType: 'customer' }, 'your_jwt_secret', { expiresIn: '365d' });
 
     // Log the login
     const loginHistory = new LoginHistory({

@@ -11,6 +11,10 @@ const AdminRoleList = require("./routes/AdminRole");
 const AdminUsersList = require("./routes/AdminUsersList");
 const CustomerLogin = require("./routes/CustomerLogin");
 const CustomerUsersList = require("./routes/CustomerUsersList");
+const Item = require("./routes/Items");
+const Categorys = require("./routes/Categorys");
+const AwsLink = require("./routes/AwsLink");
+const Supplier = require("./routes/Supplier");
 
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
@@ -76,6 +80,10 @@ app.use("/AdminRoleList", AdminRoleList);
 app.use("/AdminUsersList", AdminUsersList);
 app.use("/CustomerLogin", CustomerLogin);
 app.use("/CustomerUsersList", CustomerUsersList);
+app.use("/Category", Categorys);
+app.use("/Item", Item);
+app.use("/AwsLink", AwsLink);
+app.use("/Supplier", Supplier);
 
 // Lambda function handler
 module.exports.handler = (event, context, callback) => {
