@@ -15,6 +15,8 @@ const Item = require("./routes/Items");
 const Categorys = require("./routes/Categorys");
 const AwsLink = require("./routes/AwsLink");
 const Supplier = require("./routes/Supplier");
+const Storage = require("./routes/Storage");
+const Invoice = require("./routes/Invoices");
 
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
@@ -84,6 +86,8 @@ app.use("/Category", Categorys);
 app.use("/Item", Item);
 app.use("/AwsLink", AwsLink);
 app.use("/Supplier", Supplier);
+app.use("/Invoice", Invoice);
+app.use("/Storage", Storage);
 
 // Lambda function handler
 module.exports.handler = (event, context, callback) => {
