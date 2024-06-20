@@ -254,7 +254,6 @@ router.put('/items/:id', checkPermission('Update_Items'), async (req, res) => {
   }
 });
 
-
 // GET items by supplier ID for search in qty screen
 router.get('/items/increase/supplier/:supplierId', checkPermission('Search_Items'), async (req, res) => {
   try {
@@ -377,6 +376,33 @@ router.get('/items/:itemId/inventory', checkPermission('Search_Inv'), async (req
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error });
+  }
+});
+
+// Get storages with non-zero quantity for an item
+router.get('/item-storages/:itemId', async (req, res) => {
+  try {
+    const { itemId } = req.params;
+
+    // Fetch the item
+    const item = await Item.findById(itemId).populate('storageQuantities.storage');
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+
+    // Filter storage quantities with non-zero quantities
+    const storageDetails = item.storageQuantities
+      .filter(sq => sq.quantity > 0)
+      .map(sq => ({
+        storageId: sq.storage._id,
+        storageName: sq.storage.name,
+        quantity: sq.quantity
+      }));
+
+    res.status(200).json({ storageDetails });
+  } catch (error) {
+    console.error('Error fetching storages:', error.message);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 });
 

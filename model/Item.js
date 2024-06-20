@@ -9,6 +9,7 @@ const itemSchema = new Schema({
   price: { type: Number, required: true },
   cost: { type: Number, required: true },
   totalQuantity: { type: Number, required: true },
+  reservedQuantity: { type: Number, default: 0 },
   profitPercentage: { type: Number, required: true },
   category: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
   subcategory: { type: Schema.Types.ObjectId, ref: 'Subcategory', required: true },

@@ -17,6 +17,7 @@ const AwsLink = require("./routes/AwsLink");
 const Supplier = require("./routes/Supplier");
 const Storage = require("./routes/Storage");
 const Invoice = require("./routes/Invoices");
+const Order = require("./routes/Order");
 
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
@@ -88,6 +89,7 @@ app.use("/AwsLink", AwsLink);
 app.use("/Supplier", Supplier);
 app.use("/Invoice", Invoice);
 app.use("/Storage", Storage);
+app.use("/Order", Order);
 
 // Lambda function handler
 module.exports.handler = (event, context, callback) => {
