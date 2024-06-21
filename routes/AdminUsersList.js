@@ -3,6 +3,7 @@ const { Admin } = require('../model/Users'); // Adjust the path as needed
 const jwt = require('jsonwebtoken');
 const LoginHistory = require('../model/LoginHistory');
 const ActivityLog = require('../model/ActivityLog');
+const { Role } = require('../model/Role');
 
 const router = express.Router();
 
@@ -120,6 +121,25 @@ router.get('/login-history/:adminId', async (req, res) => {
       totalPages,
       totalLogs
     });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+});
+
+// Get all admin users with 'activate_order_casher' role
+router.get('/admins/activate_order_casher', async (req, res) => {
+  try {
+    // Find the role with name 'activate_order_casher'
+    const role = await Role.findOne({ name: 'activate_order_casher' });
+
+    if (!role) {
+      return res.status(404).json({ message: 'Role not found' });
+    }
+
+    // Find all admins with this role
+    const admins = await Admin.find({ roles: role._id }).populate('roles');
+
+    res.status(200).json(admins);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error });
   }

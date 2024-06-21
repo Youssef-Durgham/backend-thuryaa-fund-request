@@ -564,7 +564,8 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
 
   try {
     const { id } = req.params;
-    const { storageId } = req.body;
+    const { storageSelections } = req.body; // Expecting an object of storage selections
+    console.log(req.body)
 
     const order = await Order.findById(id).session(session);
     if (!order) {
@@ -572,18 +573,27 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
       session.endSession();
       return res.status(404).json({ message: 'Order not found' });
     }
+
     if (order.workflowStatus !== 'MaterialManagement') {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({ message: 'Order is not in Material Management stage' });
     }
 
-    for (const orderItem of order.items) {
-      const item = await Item.findById(orderItem.item).session(session);
+    for (const [itemId, storageId] of Object.entries(storageSelections)) {
+      const orderItem = order.items.find(oi => oi.item.toString() === itemId);
+
+      if (!orderItem) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: `Invalid selection for item: ${itemId}` });
+      }
+
+      const item = await Item.findById(itemId).session(session);
       if (!item) {
         await session.abortTransaction();
         session.endSession();
-        return res.status(404).json({ message: `Item not found: ${orderItem.item}` });
+        return res.status(404).json({ message: `Item not found: ${itemId}` });
       }
 
       // Update quantities
@@ -594,13 +604,13 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
       if (!storageQuantity) {
         await session.abortTransaction();
         session.endSession();
-        return res.status(400).json({ message: `Storage not found for item: ${orderItem.item}` });
+        return res.status(400).json({ message: `Storage not found for item: ${itemId}` });
       }
 
       if (Number(storageQuantity.quantity) < Number(orderItem.quantity)) {
         await session.abortTransaction();
         session.endSession();
-        return res.status(400).json({ message: `Not enough quantity in the selected storage for item: ${orderItem.item}` });
+        return res.status(400).json({ message: `Not enough quantity in the selected storage for item: ${item.name}` });
       }
 
       storageQuantity.quantity = Number(storageQuantity.quantity) - Number(orderItem.quantity);
@@ -609,6 +619,7 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
 
     // Update order status
     order.workflowStatus = 'Completed';
+    order.status = 'Completed';
     order.actions.push({ action: 'Order Delivered', user: req.adminId });
     await order.save({ session });
 
@@ -632,7 +643,7 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
 
   try {
     const { id } = req.params;
-    const { employeeId } = req.body; // assuming the ID of the employee responsible for the refund
+    const { storageSelections } = req.body; // Expecting an object of storage selections
 
     const order = await Order.findById(id).session(session);
     if (!order) {
@@ -647,32 +658,45 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
       return res.status(400).json({ message: 'Order is not in Material Management stage' });
     }
 
+    // Calculate the total amount of the order by summing the price * quantity for each item
+    let totalAmount = 0;
+    for (const orderItem of order.items) {
+      const item = await Item.findById(orderItem.item).session(session);
+      if (item) {
+        const storageId = storageSelections[orderItem.item.toString()];
+        if (!storageId) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({ message: `Storage not selected for item: ${orderItem.item}` });
+        }
+
+        const storageQuantity = item.storageQuantities.find(sq => sq.storage.toString() === storageId);
+        if (!storageQuantity || storageQuantity.quantity < orderItem.quantity) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({ message: `Not enough quantity in storage for item: ${item.name}` });
+        }
+
+        totalAmount += Number(item.price) * Number(orderItem.quantity);
+      } else {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: `Item not found: ${orderItem.item}` });
+      }
+    }
+
     // Refund the money to the user's wallet
     let wallet = await Wallet.findOne({ user: order.customer }).session(session);
     if (!wallet) {
       wallet = new Wallet({ user: order.customer });
     }
-    wallet.balance = Number(wallet.balance) + Number(order.totalAmount); // Convert to numbers before addition
+    wallet.balance = Number(wallet.balance) + totalAmount; // Use the calculated totalAmount
     await wallet.save({ session });
 
-    // Deduct refund amount from employee's cashbox
-    let cashbox = await Cashbox.findOne({ employee: employeeId }).session(session);
-    if (!cashbox) {
-      cashbox = new Cashbox({ employee: employeeId });
-    }
-    cashbox.totalAmount = Number(cashbox.totalAmount) - Number(order.totalAmount); // Convert to numbers before subtraction
-    await cashbox.save({ session });
-
-    // Log the refund action in HandoverLog
-    const handoverLog = new HandoverLog({
-      employee: employeeId,
-      amount: -Number(order.totalAmount), // Convert to number
-      cashbox: cashbox._id
-    });
-    await handoverLog.save({ session });
-
-    // Move items to the trash schema
+    // Move items to the trash schema and update item quantities
     for (const orderItem of order.items) {
+      const storageId = storageSelections[orderItem.item.toString()];
+
       const trash = new Trash({
         item: orderItem.item,
         quantity: orderItem.quantity,
@@ -680,14 +704,17 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
       });
       await trash.save({ session });
 
-      // Update item quantities
       const item = await Item.findById(orderItem.item).session(session);
       if (item) {
         item.reservedQuantity = Number(item.reservedQuantity) - Number(orderItem.quantity); // Convert to numbers before subtraction
         item.totalQuantity = Number(item.totalQuantity) - Number(orderItem.quantity); // Convert to numbers before subtraction
-        const storageQuantity = item.storageQuantities.find(sq => sq.storage.toString() === orderItem.storage.toString());
+        const storageQuantity = item.storageQuantities.find(sq => sq.storage.toString() === storageId);
         if (storageQuantity) {
           storageQuantity.quantity = Number(storageQuantity.quantity) - Number(orderItem.quantity); // Convert to numbers before subtraction
+        } else {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({ message: `Storage not found for item: ${orderItem.item}` });
         }
         await item.save({ session });
       }
@@ -695,7 +722,7 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
 
     // Update order status
     order.status = 'Cancelled';
-    order.actions.push({ action: 'Order Cancelled by MM', user: req.adminId });
+    order.actions.push({ action: 'Order Cancelled', user: req.adminId });
     await order.save({ session });
 
     await session.commitTransaction();
@@ -710,6 +737,7 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
     res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 });
+
 
 
 

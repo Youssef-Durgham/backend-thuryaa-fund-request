@@ -45,8 +45,8 @@ const checkPermission = (permission) => {
 
 
 // Helper function to calculate the new average price
-function calculateAveragePrice(currentPrice, currentQuantity, newPrice, newQuantity) {
-  return ((currentPrice * currentQuantity) + (newPrice * newQuantity)) / (currentQuantity + newQuantity);
+function calculateAverageCost(currentCost, currentQuantity, newCost, newQuantity) {
+  return ((currentCost * currentQuantity) + (newCost * newQuantity)) / (currentQuantity + newQuantity);
 }
 
   
@@ -123,12 +123,14 @@ router.post('/update-quantities', checkPermission('Update_quantities'), async (r
         return res.status(404).json({ message: `Storage with id ${storageId} not found` });
       }
 
-      // Calculate new average price and cost
-      existingItem.price = calculateAveragePrice(existingItem.price, existingItem.totalQuantity, price, quantity);
-      existingItem.cost = calculateAveragePrice(existingItem.cost, existingItem.totalQuantity, cost, quantity);
+      // Update price directly with the new value
+      existingItem.price = price;
+
+      // Calculate new average cost
+      existingItem.cost = calculateAverageCost(existingItem.cost, existingItem.totalQuantity, cost, quantity);
 
       // Update total quantity
-      existingItem.totalQuantity += quantity;
+      existingItem.totalQuantity = Number(existingItem.totalQuantity) + Number(quantity);
 
       // Add inventory record
       existingItem.inventory.push({ buyInvoiceId, quantity, originalPrice: price, originalCost: cost, storage: storageId });
@@ -136,9 +138,9 @@ router.post('/update-quantities', checkPermission('Update_quantities'), async (r
       // Update storage quantities
       const storageQuantity = existingItem.storageQuantities.find(sq => sq.storage.toString() === storageId);
       if (storageQuantity) {
-        storageQuantity.quantity += quantity;
+        storageQuantity.quantity = Number(storageQuantity.quantity) + Number(quantity);
       } else {
-        existingItem.storageQuantities.push({ storage: storageId, quantity });
+        existingItem.storageQuantities.push({ storage: storageId, quantity: Number(quantity) });
       }
 
       await existingItem.save();
@@ -172,33 +174,49 @@ router.post('/update-quantities', checkPermission('Update_quantities'), async (r
 
     res.status(200).json({ message: 'Item quantities updated successfully', items: updatedItems });
   } catch (error) {
-    console.log(error)
+    console.log(error);
     res.status(500).json({ message: error.message });
   }
 });
 
 // Fetch items by supplier ID with pagination
-router.get('/items/supplier/:supplierId', async (req, res) => {
+router.get('/items/supplier/:supplierId', checkPermission('Search_Items'), async (req, res) => {
   const { supplierId } = req.params;
   const page = parseInt(req.query.page) || 1;
   const limit = 10;
 
   try {
-      const totalItems = await Item.countDocuments({ supplier: supplierId });
-      const totalPages = Math.ceil(totalItems / limit);
-      const items = await Item.find({ supplier: supplierId })
-          .populate('category', 'name')
-          .populate('subcategory', 'name')
-          .skip((page - 1) * limit)
-          .limit(limit);
+    const totalItems = await Item.countDocuments({ supplier: supplierId });
+    const totalPages = Math.ceil(totalItems / limit);
+    const items = await Item.find({ supplier: supplierId })
+      .select('name productId mainImageUrl price cost totalQuantity profitPercentage category subcategory storageQuantities supplier')
+      .populate('category', 'name')
+      .populate('subcategory', 'name')
+      .populate('storageQuantities.storage', 'name')
+      .populate('supplier', 'name')
+      .skip((page - 1) * limit)
+      .limit(limit);
 
-      res.status(200).json({
-          currentPage: page,
-          totalPages,
-          items
-      });
+    const transformedItems = items.map(item => {
+      return {
+        ...item.toObject(),
+        category: item.category.name,
+        subcategory: item.subcategory.name,
+        storageQuantities: item.storageQuantities.map(sq => ({
+          storage: sq.storage.name,
+          quantity: sq.quantity
+        })),
+        supplier: item.supplier.name
+      };
+    });
+
+    res.status(200).json({
+      currentPage: page,
+      totalPages,
+      items: transformedItems
+    });
   } catch (error) {
-      res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -285,13 +303,13 @@ router.get('/items', checkPermission('Search_Items'), async (req, res) => {
   try {
     const { supplierId, storageIds, search } = req.query;
 
-    // Validate supplierId
-    if (!supplierId) {
-      return res.status(400).json({ error: 'Supplier ID is required' });
-    }
-
     // Create a query object
-    let query = { supplier: supplierId };
+    let query = {};
+
+    // Filter by supplierId if provided
+    if (supplierId) {
+      query.supplier = supplierId;
+    }
 
     // Filter by storage if provided
     if (storageIds) {
@@ -309,7 +327,7 @@ router.get('/items', checkPermission('Search_Items'), async (req, res) => {
 
     // Execute the query and populate necessary fields
     const items = await Item.find(query)
-      .select('name productId mainImageUrl price cost totalQuantity profitPercentage category subcategory storageQuantities supplier')
+      .select('name productId mainImageUrl price cost totalQuantity reservedQuantity profitPercentage category subcategory storageQuantities supplier')
       .populate('category', 'name')
       .populate('subcategory', 'name')
       .populate('storageQuantities.storage', 'name')
@@ -403,6 +421,40 @@ router.get('/item-storages/:itemId', async (req, res) => {
   } catch (error) {
     console.error('Error fetching storages:', error.message);
     res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+});
+
+// Get the avalible qty in each storage for each items
+router.post('/items/storage-quantities', async (req, res) => {
+  try {
+    const { items } = req.body; // Expecting an array of item IDs or product IDs
+
+    if (!items || !Array.isArray(items)) {
+      return res.status(400).json({ error: 'Invalid input: items must be an array' });
+    }
+
+    // Find the items in the database
+    const foundItems = await Item.find({ _id: { $in: items } })
+    .select('name productId storageQuantities')
+    .populate('storageQuantities.storage', 'name location');  
+
+    // Transform the data to include storage quantities with storage details
+    const result = foundItems.map(item => ({
+      itemId: item._id,
+      name: item.name,
+      productId: item.productId,
+      storageQuantities: item.storageQuantities.map(sq => ({
+        storageId: sq.storage._id,
+        storageName: sq.storage.name,
+        storageLocation: sq.storage.location,
+        quantity: sq.quantity
+      }))
+    }));
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
   }
 });
 

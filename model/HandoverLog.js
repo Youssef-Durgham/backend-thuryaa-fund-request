@@ -5,7 +5,8 @@ const handoverLogSchema = new Schema({
   employee: { type: Schema.Types.ObjectId, ref: 'Admin', required: true },
   amount: { type: Number, required: true },
   date: { type: Date, default: Date.now },
-  cashbox: { type: Schema.Types.ObjectId, ref: 'Cashbox', required: true }
+  cashbox: { type: Schema.Types.ObjectId, ref: 'Cashbox', required: true },
+  SysNote: { type: String}
 });
 
 const HandoverLog = mongoose.model('HandoverLog', handoverLogSchema);

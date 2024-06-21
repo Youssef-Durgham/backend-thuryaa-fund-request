@@ -18,6 +18,8 @@ const Supplier = require("./routes/Supplier");
 const Storage = require("./routes/Storage");
 const Invoice = require("./routes/Invoices");
 const Order = require("./routes/Order");
+const CashBox = require("./routes/CashBox");
+const Trash = require("./routes/Trash");
 
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
@@ -90,6 +92,8 @@ app.use("/Supplier", Supplier);
 app.use("/Invoice", Invoice);
 app.use("/Storage", Storage);
 app.use("/Order", Order);
+app.use("/CashBox", CashBox);
+app.use("/Trash", Trash);
 
 // Lambda function handler
 module.exports.handler = (event, context, callback) => {
