@@ -738,7 +738,98 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
   }
 });
 
+// create order for mobile //
 
+// JWT Authentication Middleware
+const authMiddleware = async (req, res, next) => {
+  const token = req.header('Authorization').replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({ message: 'Access Denied. No token provided.' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, 'your_jwt_secret');
+    console.log(decoded, token)
+    const customer = await Customer.findById(decoded.id);
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found.' });
+    }
+
+    req.customer = customer;
+    next();
+  } catch (error) {
+    res.status(400).json({ message: 'Invalid token.' });
+  }
+};
+
+// Create order
+router.post('/create-order-mobile', authMiddleware, async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { items } = req.body;
+
+    // Check item quantities
+    for (const orderItem of items) {
+      const item = await Item.findById(orderItem.item).session(session);
+      if (!item) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(404).json({ message: `Item not found: ${orderItem.item}` });
+      }
+      const availableQuantity = Number(item.totalQuantity) - Number(item.reservedQuantity);
+      if (availableQuantity < Number(orderItem.quantity)) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(420).json({ message: `Not enough quantity for item: ${item.name}` });
+      }
+      item.reservedQuantity = Number(item.reservedQuantity) + Number(orderItem.quantity); // Convert to numbers before addition
+      await item.save({ session });
+    }
+
+    // Get next order ID
+    const orderId = await getNextOrderId(session);
+
+    // Create order
+    const order = new Order({
+      orderId,
+      customer: req.customer._id,
+      items,
+      workflowStatus: 'MaterialManagement',
+      status: 'Posted',
+      actions: [{ action: 'Order Created', user: req.customer._id }]
+    });
+    await order.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(201).json({ message: 'Order created successfully', order });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+
+    console.error('Order creation error:', error.message);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+});
+
+// return order user details
+router.get('/orders/user/get', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.customer._id; // This will be available after JWT verification
+    const orders = await Order.find({ customer: userId })
+      .populate('customer')
+      .populate('items.item')
+      .populate('actions.user');
+console.log(orders, userId)
+    res.json(orders);
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: err.message });
+  }
+});
 
 
 module.exports = router;

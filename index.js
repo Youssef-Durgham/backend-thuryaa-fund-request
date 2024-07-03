@@ -20,6 +20,8 @@ const Invoice = require("./routes/Invoices");
 const Order = require("./routes/Order");
 const CashBox = require("./routes/CashBox");
 const Trash = require("./routes/Trash");
+const Cart = require("./routes/Cart");
+const Keycard = require("./routes/Keycard");
 
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
@@ -94,6 +96,8 @@ app.use("/Storage", Storage);
 app.use("/Order", Order);
 app.use("/CashBox", CashBox);
 app.use("/Trash", Trash);
+app.use("/Cart", Cart);
+app.use("/Keycard", Keycard);
 
 // Lambda function handler
 module.exports.handler = (event, context, callback) => {

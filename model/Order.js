@@ -12,7 +12,8 @@ const orderSchema = new Schema({
   workflowStatus: { type: String, default: 'Sales' },
   actions: [{
     action: { type: String, required: true },
-    user: { type: Schema.Types.ObjectId, ref: 'Admin', required: true },
+    userType: { type: String, required: true, enum: ['Admin', 'Customer'], default: 'Admin' },
+    user: { type: Schema.Types.ObjectId, required: true, refPath: 'actions.userType' },
     date: { type: Date, default: Date.now }
   }],
   createdAt: { type: Date, default: Date.now }

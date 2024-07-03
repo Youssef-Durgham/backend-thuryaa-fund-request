@@ -2198,6 +2198,11 @@ mute-stream@~0.0.4:
   resolved "https://registry.npmjs.org/mute-stream/-/mute-stream-0.0.8.tgz"
   integrity sha512-nnbWWOkoWyUsTjKrhgD0dcz22mdkSnpYqbEjIm2nhwhuxlSkpywJmBo8h0ZqJdkp73mb90SssHkN4rsRaBAfAA==
 
+nanoid@^5.0.7:
+  version "5.0.7"
+  resolved "https://registry.npmjs.org/nanoid/-/nanoid-5.0.7.tgz"
+  integrity sha512-oLxFY2gd2IqnjcYyOXD8XGCftpGtZP2AbHbOkthDkvRywH5ayNtPVy9YlOPcHckXzbLTCHpkb7FB+yuxKV13pQ==
+
 needle@2.4.0:
   version "2.4.0"
   resolved "https://registry.npmjs.org/needle/-/needle-2.4.0.tgz"

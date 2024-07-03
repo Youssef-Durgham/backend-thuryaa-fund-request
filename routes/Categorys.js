@@ -108,6 +108,16 @@ router.get('/categories-with-subcategories', checkPermission('Category'), async 
     }
 });
 
+// Retrieve Categories
+router.get('/categories', async (req, res) => {
+  try {
+    const categories = await Category.find({});
+    res.status(200).json(categories);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Edit category
 router.put('/edit-category/:id', checkPermission('Edit_Category'), async (req, res) => {
   const { id } = req.params;

@@ -5,6 +5,8 @@ const ActivityLog = require('../model/ActivityLog');
 const Item = require('../model/Item');
 const InvoiceHistory = require('../model/InvoiceHistory');
 const Storage = require('../model/Storage');
+const Category = require('../model/Category');
+const mongoose = require('mongoose');
 
 const router = express.Router();
 
@@ -455,6 +457,128 @@ router.post('/items/storage-quantities', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/categories-with-items', async (req, res) => {
+  try {
+    const categories = await Category.find({});
+
+    const categoriesWithItems = await Promise.all(categories.map(async (category) => {
+      const items = await Item.find({
+        category: category._id,
+        totalQuantity: { $gt: 0 },
+        $expr: { $gt: ['$totalQuantity', '$reservedQuantity'] }
+      }).limit(20);
+
+      if (items.length === 0) return null; // Skip categories with no items
+
+      return {
+        category: category.name,
+        imageUrl: category.imageUrl,
+        items: items.map(item => ({
+          name: item.name,
+          productId: item.productId,
+          _id: item._id,
+          mainImageUrl: item.mainImageUrl,
+          images: item.images,
+          price: item.price,
+          totalQuantity: item.totalQuantity,
+          reservedQuantity: item.reservedQuantity,
+        }))
+      };
+    }));
+
+    // Filter out null values
+    const filteredCategoriesWithItems = categoriesWithItems.filter(category => category !== null);
+
+    res.status(200).json(filteredCategoriesWithItems);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get('/item/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    // Validate productId as a valid ObjectId
+    console.log(productId)
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ message: 'Invalid product ID format' });
+    }
+
+    // Ensure productId is a valid ObjectId
+    const item = await Item.findOne({ _id: new mongoose.Types.ObjectId(productId) })
+      .select('_id name productId mainImageUrl images price cost totalQuantity category subcategory supplier description');
+
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+
+    res.json(item);
+  } catch (error) {
+    console.log(error)
+    res.status(500).json({ message: 'Server error', error });
+  }
+});
+
+// Route to get items by category with pagination
+router.get('/category/items/:categoryId', async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    const { page = 1 } = req.query; // Default to page 1 if not provided
+    const itemsPerPage = 40;
+
+    // Fetch items based on categoryId with pagination
+    const items = await Item.find({ category: categoryId })
+      .skip((page - 1) * itemsPerPage)
+      .limit(itemsPerPage);
+
+    // Count total items for the given category
+    const totalItems = await Item.countDocuments({ category: categoryId });
+
+    // Calculate total pages
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+    // Return response
+    res.status(200).json({
+      page: Number(page),
+      totalPages,
+      totalItems,
+      items,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+});
+
+//search for items as pages
+router.get('/search/items', async (req, res) => {
+  try {
+    const { name, page = 1 } = req.query; // Get the search query and page number from query parameters
+    const itemsPerPage = 40;
+
+    // Find items by name using a case-insensitive regex
+    const items = await Item.find({ name: new RegExp(name, 'i') })
+      .skip((page - 1) * itemsPerPage)
+      .limit(itemsPerPage);
+
+    // Count total items matching the search query
+    const totalItems = await Item.countDocuments({ name: new RegExp(name, 'i') });
+
+    // Calculate total pages
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+    // Return response
+    res.status(200).json({
+      page: Number(page),
+      totalPages,
+      totalItems,
+      items,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
   }
 });
 
