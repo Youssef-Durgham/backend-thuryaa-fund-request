@@ -46,14 +46,20 @@ const sendOtp = async (phone, otp) => {
 router.post('/register', async (req, res) => {
   const { phone, name, password, location } = req.body;
   console.log(req.body);
+
+  // Normalize the phone number
   let formattedPhone = phone;
-  if (formattedPhone.startsWith('9640')) {
-    formattedPhone = '964' + formattedPhone.slice(4);
+  if (!formattedPhone.startsWith('0')) {
+    formattedPhone = '0' + formattedPhone;
   }
-  console.log(formattedPhone)
+  if (!formattedPhone.startsWith('964')) {
+    formattedPhone = '964' + formattedPhone;
+  }
+  console.log(formattedPhone);
+
   try {
     let customer = await Customer.findOne({ phone: formattedPhone });
-    console.log(customer)
+    console.log(customer);
     const otp = generateOtp();
 
     if (customer) {
@@ -66,7 +72,7 @@ router.post('/register', async (req, res) => {
         customer.otpExpiresAt = Date.now() + otpExpiryTime;
         await customer.save();
         
-        await sendOtp(phone, otp);
+        await sendOtp(formattedPhone, otp);
 
         return res.status(200).json({ message: 'Customer data updated, OTP sent' });
       } else {
@@ -74,8 +80,6 @@ router.post('/register', async (req, res) => {
       }
     } else {
       // If customer does not exist, create a new one
-      // Ensure phone number format is correct
-      
       customer = new Customer({
         phone: formattedPhone,
         name,
@@ -86,7 +90,7 @@ router.post('/register', async (req, res) => {
       });
       await customer.save();
       
-      await sendOtp(phone, otp);
+      await sendOtp(formattedPhone, otp);
 
       res.status(201).json({ message: 'Customer registered successfully, OTP sent' });
     }
@@ -180,7 +184,16 @@ router.post('/reset-password', async (req, res) => {
     }
 
     if (!customer && phone) {
-      customer = await Customer.findOne({ phone });
+      // Normalize the phone number
+      let normalizedPhone = phone;
+      if (!normalizedPhone.startsWith('0')) {
+        normalizedPhone = '0' + normalizedPhone;
+      }
+      if (!normalizedPhone.startsWith('964')) {
+        normalizedPhone = '964' + normalizedPhone;
+      }
+
+      customer = await Customer.findOne({ phone: normalizedPhone });
     }
 
     if (!customer) {
@@ -192,7 +205,7 @@ router.post('/reset-password', async (req, res) => {
     customer.otpExpiresAt = Date.now() + otpExpiryTime;
     await customer.save();
 
-        await sendOtp(customer.phone, otp);
+    await sendOtp(customer.phone, otp);
 
     res.status(200).json({ message: 'OTP sent for password reset' });
   } catch (error) {

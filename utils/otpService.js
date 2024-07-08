@@ -1,5 +1,18 @@
 const axios = require('axios');
 
+
+const sendOtpViaWhatsApp = async (phone, otp) => {
+  // Implement WhatsApp sending logic using UltraMsg
+  const response = await axios.post('https://api.ultramsg.com/instance87136/messages/chat', {
+    token: '2i9r14uumbiddwpb',
+    to: phone,
+    body: `Your OTP is: ${otp}`
+  });
+  if (response.data.error) {
+    throw new Error('WhatsApp sending failed');
+  }
+};
+
 const sendOtpViaSms = async (phone, otp) => {
   try {
     // Encode the client_id and client_secret to Base64
@@ -32,21 +45,11 @@ const sendOtpViaSms = async (phone, otp) => {
     }
   } catch (error) {
     console.log(error)
-    throw new Error('SMS sending failed');
+    sendOtpViaWhatsApp(phone, otp)
   }
 };
 
-const sendOtpViaWhatsApp = async (phone, otp) => {
-  // Implement WhatsApp sending logic using UltraMsg
-  const response = await axios.post('https://api.ultramsg.com/instance87136/messages/chat', {
-    token: '2i9r14uumbiddwpb',
-    to: phone,
-    body: `Your OTP is: ${otp}`
-  });
-  if (response.data.error) {
-    throw new Error('WhatsApp sending failed');
-  }
-};
+
 
 module.exports = {
   sendOtpViaSms,
