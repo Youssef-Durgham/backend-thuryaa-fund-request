@@ -173,7 +173,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/e-commerce-future/dev/1720388454905-2024-07-07T21:40:54.905Z/e-commerce-future.zip"
+          "S3Key": "serverless/e-commerce-future/dev/1721510723573-2024-07-20T21:25:23.573Z/e-commerce-future.zip"
         },
         "Handler": "index.handler",
         "Runtime": "nodejs18.x",
@@ -288,7 +288,7 @@
         "MainLambdaPermissionApiGateway"
       ]
     },
-    "ApiGatewayDeployment1720388424746": {
+    "ApiGatewayDeployment1721510707287": {
       "Type": "AWS::ApiGateway::Deployment",
       "Properties": {
         "RestApiId": {

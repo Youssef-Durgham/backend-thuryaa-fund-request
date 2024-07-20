@@ -41,8 +41,8 @@ const checkPermission = (permission) => {
 
 router.post('/banners', checkPermission('Add_Banner'), async (req, res) => {
     try {
-      const { imageUrl } = req.body;
-      const banner = new Banner({ imageUrl });
+      const { imageUrl, itemId } = req.body;
+      const banner = new Banner({ imageUrl, itemId });
       await banner.save();
       res.status(201).json(banner);
     } catch (err) {
@@ -65,7 +65,7 @@ router.delete('/banners/:id', checkPermission('Delete_Banner'), async (req, res)
 
 router.get('/banners', async (req, res) => {
     try {
-      const banners = await Banner.find();
+      const banners = await Banner.find().populate('itemId', 'name productId'); // Populate with item details
       res.status(200).json(banners);
     } catch (err) {
       res.status(400).json({ error: err.message });

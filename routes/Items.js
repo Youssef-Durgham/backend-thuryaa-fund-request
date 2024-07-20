@@ -582,5 +582,27 @@ router.get('/search/items', async (req, res) => {
   }
 });
 
+// Search items by productId or name
+router.get('/items/SearchByIdOrName', async (req, res) => {
+  try {
+    const { query } = req.query;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    const items = await Item.find({
+      $or: [
+        { productId: { $regex: query, $options: 'i' } },
+        { name: { $regex: query, $options: 'i' } }
+      ]
+    });
+
+    res.status(200).json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
   module.exports = router;
