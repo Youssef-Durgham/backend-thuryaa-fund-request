@@ -141,17 +141,21 @@ if (formattedPhone.startsWith('964') && formattedPhone.charAt(3) !== '0') {
 router.post('/login', async (req, res) => {
   let { phone, password } = req.body;
   
-  // Add the 964 prefix and handle specific prefixes
-  if (phone.startsWith('0770')) {
-    phone = `96477${phone.slice(3)}`;
-  } else if (phone.startsWith('0780')) {
-    phone = `96478${phone.slice(3)}`;
-  } else if (!phone.startsWith('964')) {
-    phone = `964${phone}`;
-  }
+  // Normalize the phone number
+  let formattedPhone = phone;
+ // If doesn't start with 964, add it
+ if (!formattedPhone.startsWith('964')) {
+  formattedPhone = '964' + formattedPhone;
+}
+
+// If there's no 0 after 964, add it
+if (formattedPhone.startsWith('964') && formattedPhone.charAt(3) !== '0') {
+  formattedPhone = formattedPhone.slice(0, 3) + '0' + formattedPhone.slice(3);
+}
+  console.log(formattedPhone);
 
   try {
-    const customer = await Customer.findOne({ phone });
+    const customer = await Customer.findOne({ phone: formattedPhone });
     if (!customer || !(await bcrypt.compare(password, customer.password))) {
       return res.status(400).json({ message: 'Invalid phone or password' });
     }
@@ -235,40 +239,33 @@ if (formattedPhone.startsWith('964') && formattedPhone.charAt(3) !== '0') {
 router.post('/verify-otp-reset-password', async (req, res) => {
   const { phone, otp, newPassword } = req.body;
   let customer;
-    // Normalize the phone number
-    let formattedPhone = phone;
-    // If doesn't start with 964, add it
-    if (!formattedPhone.startsWith('964')) {
-     formattedPhone = '964' + formattedPhone;
-   }
-   
-   // If there's no 0 after 964, add it
-   if (formattedPhone.startsWith('964') && formattedPhone.charAt(3) !== '0') {
-     formattedPhone = formattedPhone.slice(0, 3) + '0' + formattedPhone.slice(3);
-   }
-     console.log(formattedPhone);
-
+  // Normalize the phone number
+  let formattedPhone = phone;
+  if (!formattedPhone.startsWith('964')) {
+    formattedPhone = '964' + formattedPhone;
+  }
+  if (formattedPhone.startsWith('964') && formattedPhone.charAt(3) !== '0') {
+    formattedPhone = formattedPhone.slice(0, 3) + '0' + formattedPhone.slice(3);
+  }
+  console.log(formattedPhone);
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
     if (token) {
       const decoded = jwt.verify(token, 'your_jwt_secret'); // Replace 'your_jwt_secret' with your actual secret
       customer = await Customer.findById(decoded.id);
     }
-
     if (!token) {
-      customer = await Customer.findOne({ phone:formattedPhone });
+      customer = await Customer.findOne({ phone: formattedPhone });
     }
     console.log(customer)
-
     if (!customer || customer.otp !== otp || customer.otpExpiresAt < Date.now()) {
       return res.status(400).json({ message: 'Invalid or expired OTP' });
     }
-
-    customer.password = await bcrypt.hash(newPassword, 10);
+    customer.password = newPassword;
+    console.log(newPassword)
     customer.otp = undefined;
     customer.otpExpiresAt = undefined;
     await customer.save();
-
     res.status(200).json({ message: 'Password reset successfully' });
   } catch (error) {
     console.log(error);

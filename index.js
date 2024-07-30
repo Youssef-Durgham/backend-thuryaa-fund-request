@@ -24,8 +24,8 @@ const Cart = require("./routes/Cart");
 const Keycard = require("./routes/Keycard");
 const Banner = require("./routes/Banner");
 
-const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
+// const helmet = require("helmet");
+// const rateLimit = require("express-rate-limit");
 const serverless = require('serverless-http');
 
 // Middleware
@@ -33,7 +33,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(cors());
 // Use helmet to set HTTP headers that improve security
-app.use(helmet());
+// app.use(helmet());
 // const rateLimiter = rateLimit({
 //   windowMs: 60 * 60 * 1000, // 1 hour
 //   max: 4000000000, // limit each IP to 400 requests per windowMs
