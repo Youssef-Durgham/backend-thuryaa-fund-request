@@ -9,7 +9,7 @@
       "versionFunctions": false,
       "runtime": "nodejs18.x",
       "region": "me-south-1",
-      "memorySize": 10240,
+      "memorySize": 3008,
       "timeout": 900,
       "apiGateway": {
         "binaryMediaTypes": [
@@ -195,12 +195,12 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/e-commerce-future/dev/1722283912211-2024-07-29T20:11:52.211Z/e-commerce-future.zip"
+                "S3Key": "serverless/e-commerce-future/dev/1722638893292-2024-08-02T22:48:13.292Z/e-commerce-future.zip"
               },
               "Handler": "index.handler",
               "Runtime": "nodejs18.x",
               "FunctionName": "e-commerce-future-dev-main",
-              "MemorySize": 10240,
+              "MemorySize": 3008,
               "Timeout": 900,
               "Environment": {
                 "Variables": {
@@ -310,7 +310,7 @@
               "MainLambdaPermissionApiGateway"
             ]
           },
-          "ApiGatewayDeployment1722283908938": {
+          "ApiGatewayDeployment1722638889555": {
             "Type": "AWS::ApiGateway::Deployment",
             "Properties": {
               "RestApiId": {
@@ -719,7 +719,7 @@
         ],
         "name": "e-commerce-future-dev-main",
         "package": {},
-        "memory": 10240,
+        "memory": 3008,
         "timeout": 900,
         "runtime": "nodejs18.x",
         "vpc": {}
@@ -744,7 +744,7 @@
     "artifact": "/Volumes/programming_folders/ecommerce/backend/.serverless/e-commerce-future.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/e-commerce-future/dev/1722283912211-2024-07-29T20:11:52.211Z",
+    "artifactDirectoryName": "serverless/e-commerce-future/dev/1722638893292-2024-08-02T22:48:13.292Z",
     "artifact": "e-commerce-future.zip"
   }
 }
