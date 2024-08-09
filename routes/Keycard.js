@@ -139,6 +139,39 @@ const getNextOrderId = async (session) => {
     return order ? order.orderId + 1 : 1;
 };
 
+const sendWhatsAppMessage = async (phone, message) => {
+    try {
+      const response = await axios.post('https://api.ultramsg.com/instance87136/messages/chat', {
+        token: '2i9r14uumbiddwpb',
+        to:`${phone}`,
+        body: message
+      });
+      console.log(response.data.error)
+      if (response.data.error) {
+        throw new Error('WhatsApp sending failed');
+      }
+      
+      console.log('WhatsApp message sent successfully');
+    } catch (error) {
+      console.error('Error sending WhatsApp message:', error.message);
+      throw error;
+    }
+  };
+  
+  const generateOrderInvoiceMessage = (order) => {
+    console.log(order)
+    let message = `Order Invoice\n\nOrder ID: ${order.orderId}\n\nItems:\n`;
+  
+    order.items.forEach(item => {
+      message += `- ${item.name}: ${item.quantity}\n`;
+    });
+  
+    message += `\nTotal Items: ${order.items.length}\nStatus: ${order.status}\n\nThank you for your order!`;
+  
+    return message;
+  };
+  
+
 // Get Transaction Details API
 router.get('/transaction/:orderId', authMiddleware, async (req, res) => {
     const { orderId } = req.params;
@@ -222,6 +255,15 @@ router.get('/transaction/:orderId', authMiddleware, async (req, res) => {
                     cart.items = [];
                     await cart.save({ session });
                 }
+
+                // Fetch customer details to get the phone number
+                const customer = await Customer.findById(req.customer._id);
+
+                // Generate the order invoice message
+                const message = generateOrderInvoiceMessage(order);
+
+                // Send WhatsApp message
+                await sendWhatsAppMessage(customer.phone, message);
 
                 await session.commitTransaction();
                 session.endSession();

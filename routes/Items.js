@@ -111,7 +111,7 @@ router.post('/update-quantities', checkPermission('Update_quantities'), async (r
     const updatedItems = [];
 
     for (const update of updates) {
-      const { productId, buyInvoiceId, quantity, price, cost, storageId } = update;
+      const { productId, buyInvoiceId, quantity, price, cost, storageId, dateAdded, note } = update;
 
       let existingItem = await Item.findOne({ productId });
 
@@ -134,8 +134,16 @@ router.post('/update-quantities', checkPermission('Update_quantities'), async (r
       // Update total quantity
       existingItem.totalQuantity = Number(existingItem.totalQuantity) + Number(quantity);
 
-      // Add inventory record
-      existingItem.inventory.push({ buyInvoiceId, quantity, originalPrice: price, originalCost: cost, storage: storageId });
+      // Add inventory record with dateAdded and note
+      existingItem.inventory.push({ 
+        buyInvoiceId, 
+        quantity, 
+        originalPrice: price, 
+        originalCost: cost, 
+        storage: storageId,
+        dateAdded: dateAdded || new Date(),
+        note: note || ''
+      });
 
       // Update storage quantities
       const storageQuantity = existingItem.storageQuantities.find(sq => sq.storage.toString() === storageId);
@@ -158,21 +166,6 @@ router.post('/update-quantities', checkPermission('Update_quantities'), async (r
 
       await activityLog.save();
     }
-
-    // Save invoice history
-    const invoiceHistory = new InvoiceHistory({
-      buyInvoiceId: updates[0].buyInvoiceId,
-      items: updatedItems.map(item => ({
-        productId: item.productId,
-        name: item.name,
-        quantity: item.totalQuantity,
-        price: item.price,
-        cost: item.cost,
-        storage: item.inventory[item.inventory.length - 1].storage // Last updated storage
-      }))
-    });
-
-    await invoiceHistory.save();
 
     res.status(200).json({ message: 'Item quantities updated successfully', items: updatedItems });
   } catch (error) {
@@ -279,8 +272,8 @@ router.get('/items/increase/supplier/:supplierId', checkPermission('Search_Items
   try {
     const supplierId = req.params.supplierId;
     const items = await Item.find({ supplier: supplierId })
-      .populate('category', 'name') // Assuming the category schema has a 'name' field
-      .populate('subcategory', 'name'); // Assuming the subcategory schema has a 'name' field
+      .populate('category', 'name')
+      .populate('subcategory', 'name');
 
     const response = items.map(item => ({
       name: item.name,
@@ -290,15 +283,17 @@ router.get('/items/increase/supplier/:supplierId', checkPermission('Search_Items
       cost: item.cost,
       totalQuantity: item.totalQuantity,
       profitPercentage: item.profitPercentage,
-      category: item.category.name,
-      subcategory: item.subcategory.name
+      category: item.category ? item.category.name : null,
+      subcategory: item.subcategory ? item.subcategory.name : null
     }));
 
     res.status(200).json(response);
   } catch (error) {
+    console.log(error);
     res.status(500).json({ message: error.message });
   }
 });
+
 
 // Get all Items and filter by them for a supplier
 router.get('/items', checkPermission('Search_Items'), async (req, res) => {
@@ -329,28 +324,35 @@ router.get('/items', checkPermission('Search_Items'), async (req, res) => {
 
     // Execute the query and populate necessary fields
     const items = await Item.find(query)
-      .select('name productId mainImageUrl price cost totalQuantity reservedQuantity profitPercentage category subcategory storageQuantities supplier')
+      .select('_id name productId mainImageUrl price cost totalQuantity reservedQuantity profitPercentage category subcategory storageQuantities supplier')
       .populate('category', 'name')
       .populate('subcategory', 'name')
       .populate('storageQuantities.storage', 'name')
       .populate('supplier', 'name');
 
     // Transform the response to replace IDs with names
-    const transformedItems = items.map(item => {
-      return {
-        ...item.toObject(),
-        category: item.category.name,
-        subcategory: item.subcategory.name,
-        storageQuantities: item.storageQuantities.map(sq => ({
-          storage: sq.storage.name,
-          quantity: sq.quantity
-        })),
-        supplier: item.supplier.name
-      };
-    });
+    const transformedItems = items.map(item => ({
+      id: item._id,
+      name: item.name,
+      productId: item.productId,
+      mainImageUrl: item.mainImageUrl,
+      price: item.price,
+      cost: item.cost,
+      totalQuantity: item.totalQuantity,
+      reservedQuantity: item.reservedQuantity,
+      profitPercentage: item.profitPercentage,
+      category: item.category ? item.category.name : null,
+      subcategory: item.subcategory ? item.subcategory.name : null,
+      storageQuantities: item.storageQuantities.map(sq => ({
+        storage: sq.storage ? sq.storage.name : null,
+        quantity: sq.quantity
+      })),
+      supplier: item.supplier ? item.supplier.name : null
+    }));
 
     res.status(200).json(transformedItems);
   } catch (error) {
+    console.log(error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -19,7 +19,9 @@ const itemSchema = new Schema({
     quantity: { type: Number, required: true },
     originalPrice: { type: Number, required: true },
     originalCost: { type: Number, required: true },
-    storage: { type: Schema.Types.ObjectId, ref: 'Storage', required: true }
+    storage: { type: Schema.Types.ObjectId, ref: 'Storage', required: true },
+    dateAdded: { type: Date, default: Date.now },  // New field
+    note: { type: String, default: '' }  // New field
   }],
   storageQuantities: [{
     storage: { type: Schema.Types.ObjectId, ref: 'Storage', required: true },

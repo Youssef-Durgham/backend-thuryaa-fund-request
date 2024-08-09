@@ -78,17 +78,13 @@ router.post('/create-order', checkPermission('create_order'), async (req, res) =
     for (const orderItem of items) {
       const item = await Item.findById(orderItem.item).session(session);
       if (!item) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(404).json({ message: `Item not found: ${orderItem.item}` });
+        throw new Error(`Item not found: ${orderItem.item}`);
       }
       const availableQuantity = Number(item.totalQuantity) - Number(item.reservedQuantity);
       if (availableQuantity < Number(orderItem.quantity)) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({ message: `Not enough quantity for item: ${item.name}` });
+        throw new Error(`Not enough quantity for item: ${item.name}`);
       }
-      item.reservedQuantity = Number(item.reservedQuantity) + Number(orderItem.quantity); // Convert to numbers before addition
+      item.reservedQuantity = Number(item.reservedQuantity) + Number(orderItem.quantity);
       await item.save({ session });
     }
 
@@ -102,18 +98,23 @@ router.post('/create-order', checkPermission('create_order'), async (req, res) =
       items,
       actions: [{ action: 'Order Created', user: req.adminId }]
     });
+
+    // Check if an order with this ID already exists
+    const existingOrder = await Order.findOne({ orderId }).session(session);
+    if (existingOrder) {
+      throw new Error(`Order with ID ${orderId} already exists`);
+    }
+
     await order.save({ session });
 
     await session.commitTransaction();
-    session.endSession();
-
     res.status(201).json({ message: 'Order created successfully', order });
   } catch (error) {
     await session.abortTransaction();
-    session.endSession();
-
     console.error('Order creation error:', error.message);
     res.status(500).json({ message: 'Internal server error', error: error.message });
+  } finally {
+    session.endSession();
   }
 });
 

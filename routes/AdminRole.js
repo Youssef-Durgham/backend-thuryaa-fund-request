@@ -47,6 +47,22 @@ const checkPermission = (permission) => {
   };
 };
 
+// Middleware to authenticate and extract user ID from JWT token
+const authenticate = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Access denied. No token provided.' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, "your_jwt_secret");
+    req.userId = decoded.id;
+    next();
+  } catch (error) {
+    res.status(400).json({ message: 'Invalid token.' });
+  }
+};
+
 // Create a new role
 router.post('/add-role', checkPermission('add_role_group'), async (req, res) => {
   const { name } = req.body;
@@ -241,6 +257,21 @@ router.post('/send-sms', async (req, res) => {
 
 });
 
+// Route to get roles for the authenticated admin
+router.get('/admin/roles', authenticate, async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.userId).populate('roles');
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found.' });
+    }
+
+    const rolesData = await Role.find({ _id: { $in: admin.roles } });
+
+    res.json({ roles: rolesData });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error.', error });
+  }
+});
 
 
 module.exports = router;

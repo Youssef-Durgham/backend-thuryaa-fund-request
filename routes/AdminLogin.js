@@ -270,14 +270,14 @@ router.post('/reset-password', async (req, res) => {
         return res.status(404).json({ message: 'Admin not found' });
       }
       admin.oldPassword = admin.password; // Store the old password
-      admin.password = await bcrypt.hash(initialPassword, 10);
+      admin.password = initialPassword;
       admin.forcePasswordChange = true; // Add a flag to enforce password change
       await admin.save();
   
       // Log the activity
       const activityLog = new ActivityLog({
         action: 'reset_password',
-        performedBy: req.adminId,
+        performedBy: 'reset_password',
         targetUser: admin._id,
         userType: 'Admin'
       });
@@ -285,6 +285,7 @@ router.post('/reset-password', async (req, res) => {
   
       res.status(200).json({ message: 'Password reset successfully' });
     } catch (error) {
+      console.log(error)
       res.status(500).json({ message: 'Server error', error });
     }
   });
