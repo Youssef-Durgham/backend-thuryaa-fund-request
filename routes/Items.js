@@ -60,7 +60,7 @@ router.post('/define-items', checkPermission('Define_items'), async (req, res) =
     const definedItems = [];
 
     for (const item of items) {
-      const { name, productId, mainImageUrl, images, category, subcategory, supplier, profitPercentage } = item;
+      const { name, productId, mainImageUrl, images, category, subcategory, supplier, profitPercentage, UOM, Specification, Brand } = item;
 
       let existingItem = await Item.findOne({ productId });
 
@@ -80,6 +80,9 @@ router.post('/define-items', checkPermission('Define_items'), async (req, res) =
         category,
         subcategory,
         supplier,
+        UOM,
+        Specification,
+        Brand,
         inventory: []
       });
 
@@ -239,7 +242,7 @@ router.get('/items/search', checkPermission('Search_Items'), async (req, res) =>
 // Update item by ID
 router.put('/items/:id', checkPermission('Update_Items'), async (req, res) => {
   const { id } = req.params;
-  const { name, mainImageUrl, images, category, subcategory, profitPercentage } = req.body;
+  const { name, mainImageUrl, images, category, subcategory, profitPercentage, UOM, Specification, Brand } = req.body;
 
   try {
     const updatedItem = await Item.findByIdAndUpdate(
@@ -250,7 +253,10 @@ router.put('/items/:id', checkPermission('Update_Items'), async (req, res) => {
         images,
         category,
         subcategory,
-        profitPercentage
+        profitPercentage,
+        UOM,
+        Specification,
+        Brand
       },
       { new: true }
     )
@@ -361,43 +367,49 @@ router.get('/items', checkPermission('Search_Items'), async (req, res) => {
 router.get('/items/:itemId/inventory', checkPermission('Search_Inv'), async (req, res) => {
   try {
     const { itemId } = req.params;
-    const { page = 1, limit = 50 } = req.query;
+    const { page = 1, limit = 50, exportAll = false } = req.query;
+    const queryLimit = parseInt(limit);
+    const skip = (parseInt(page) - 1) * queryLimit;
 
-    const item = await Item.findById(itemId).populate('inventory.storage', 'name');
-
+    // Fetch the item without populating the entire inventory
+    const item = await Item.findById(itemId);
     if (!item) {
       return res.status(404).json({ message: 'Item not found' });
     }
 
-    // Get the total number of inventory records
     const totalInventory = item.inventory.length;
+    let inventoryQuery;
 
-    // Calculate the total number of pages
-    const totalPages = Math.ceil(totalInventory / limit);
+    if (exportAll === 'true') {
+      inventoryQuery = item.inventory;
+    } else {
+      // Use Array.slice for pagination when not exporting all
+      inventoryQuery = item.inventory.slice(skip, skip + queryLimit);
+    }
 
-    // Get the paginated inventory data
-    const paginatedInventory = item.inventory.slice((page - 1) * limit, page * limit);
-
-    // Map the paginated inventory to replace storage IDs with names and add item details
     const inventoryWithDetails = await Promise.all(
-      paginatedInventory.map(async (inventoryItem) => {
+      inventoryQuery.map(async (inventoryItem) => {
         const storage = await Storage.findById(inventoryItem.storage);
         return {
           ...inventoryItem.toObject(),
-          storage: storage.name,
+          storage: storage ? storage.name : 'Unknown',
           productId: item.productId,
           itemName: item.name,
         };
       })
     );
 
+    const totalPages = Math.ceil(totalInventory / queryLimit);
+
     res.status(200).json({
       inventory: inventoryWithDetails,
-      totalPages,
+      totalPages: exportAll === 'true' ? 1 : totalPages,
       currentPage: parseInt(page),
+      totalItems: totalInventory,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
+    console.error('Server error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
