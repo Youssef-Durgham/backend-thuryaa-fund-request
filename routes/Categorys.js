@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const ActivityLog = require('../model/ActivityLog');
 const Category = require('../model/Category');
 const Subcategory = require('../model/SubCategory');
+const Item = require('../model/Item');
 
 const router = express.Router();
 
@@ -173,6 +174,91 @@ router.put('/edit-subcategory/:id', checkPermission('Edit_SubCategory'), async (
   } catch (error) {
       console.log(error);
       res.status(500).json({ message: error.message });
+  }
+});
+
+// Get subcategories and items for a given category for mobile app
+router.get('/category/:categoryId', async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+
+    // Fetch all subcategories of the given category
+    const subcategories = await Subcategory.find({ category: categoryId });
+
+    // Prepare the response data
+    const data = [];
+
+    // Iterate over each subcategory
+    for (const subcategory of subcategories) {
+      // Fetch the newest 20 items for the subcategory
+      const items = await Item.find({
+        subcategory: subcategory._id,
+        $expr: { $gt: ["$totalQuantity", "$reservedQuantity"] } // Ensure items have available quantity
+      })
+      .sort({ 'inventory.dateAdded': -1 }) // Sort by newest items
+      .limit(20)
+      .select('_id name productId mainImageUrl images price totalQuantity reservedQuantity') // Return only necessary fields
+      .lean();
+
+      // Only add the subcategory if there are items available
+      if (items.length > 0) {
+        data.push({
+          subcategoryId: subcategory._id,
+          subcategoryName: subcategory.name,
+          subcategoryImageUrl: subcategory.imageUrl, // Include the imageUrl for the subcategory
+          items
+        });
+      }
+    }
+
+    return res.json(data);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
+
+// Get items for a given subcategory with pagination for mobile app
+router.get('/subcategory/:subcategoryId/items', async (req, res) => {
+  try {
+    const { subcategoryId } = req.params;
+    const { page = 1, limit = 50 } = req.query; // Default to page 1 and limit 50
+
+    // Convert page and limit to numbers
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
+
+    // Get the total count of items in the subcategory
+    const totalItems = await Item.countDocuments({
+      subcategory: subcategoryId,
+      $expr: { $gt: ["$totalQuantity", "$reservedQuantity"] } // Ensure items have available quantity
+    });
+
+    // Calculate the total number of pages
+    const totalPages = Math.ceil(totalItems / limitNumber);
+
+    // Fetch items for the subcategory with pagination
+    const items = await Item.find({
+      subcategory: subcategoryId,
+      $expr: { $gt: ["$totalQuantity", "$reservedQuantity"] } // Ensure items have available quantity
+    })
+    .sort({ 'inventory.dateAdded': -1 }) // Sort by newest items
+    .skip((pageNumber - 1) * limitNumber) // Skip the previous pages
+    .limit(limitNumber) // Limit the number of items returned
+    .select('_id name productId mainImageUrl images price totalQuantity reservedQuantity') // Return only necessary fields
+    .lean();
+
+    // Prepare the response
+    const response = {
+      currentPage: pageNumber,
+      totalPages,
+      items
+    };
+
+    return res.json(response);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
   }
 });
 
