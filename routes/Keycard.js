@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const Cart = require('../model/Cart');
 const Item = require('../model/Item');
 const Order = require('../model/Order');
+const Counter = require('../model/Counter');
 const mongoose = require('mongoose');
 
 const router = express.Router();
@@ -135,9 +136,13 @@ router.post('/create-transaction', authMiddleware, async (req, res) => {
 
 
 const getNextOrderId = async (session) => {
-    const order = await Order.findOne({}, {}, { sort: { 'orderId': -1 } }).session(session);
-    return order ? order.orderId + 1 : 1;
-};
+    const counter = await Counter.findOneAndUpdate(
+      { name: 'orderId' },
+      { $inc: { value: 1 } },
+      { new: true, upsert: true, session }
+    );
+    return counter.value;
+  };
 
 const sendWhatsAppMessage = async (phone, message) => {
     try {
