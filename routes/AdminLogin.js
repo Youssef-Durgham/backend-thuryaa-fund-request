@@ -290,4 +290,46 @@ router.post('/reset-password', async (req, res) => {
     }
   });
 
+  router.get('/AdminLogin/verify', async (req, res) => {
+    const token = req.headers.authorization?.split(' ')[1];
+  
+    if (!token) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+  
+    try {
+      // Verify the token
+      const decoded = jwt.verify(token, 'your_jwt_secret');
+  
+      // Find the admin in the database
+      const admin = await Admin.findById(decoded.id).select('-password');
+  
+      if (!admin) {
+        return res.status(404).json({ message: 'Admin not found' });
+      }
+  
+      // Check if the admin needs to change their password
+      if (admin.forcePasswordChange) {
+        return res.status(403).json({ message: 'Password change required', forcePasswordChange: true });
+      }
+  
+      // Token is valid and admin exists
+      res.json({
+        message: 'Token is valid',
+        admin: {
+          id: admin._id,
+          name: admin.name,
+          phone: admin.phone,
+          roles: admin.roles
+        }
+      });
+    } catch (error) {
+      if (error instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ message: 'Invalid token' });
+      }
+      console.error('Error in /AdminLogin/verify:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
 module.exports = router;
