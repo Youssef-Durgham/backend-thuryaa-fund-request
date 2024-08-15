@@ -114,7 +114,7 @@ router.post('/update-quantities', checkPermission('Update_quantities'), async (r
     const updatedItems = [];
 
     for (const update of updates) {
-      const { productId, buyInvoiceId, quantity, price, cost, storageId, dateAdded, note } = update;
+      const { productId, buyInvoiceId, quantity, price, cost, storageId, partitionId, dateAdded, note } = update;
 
       let existingItem = await Item.findOne({ productId });
 
@@ -126,6 +126,15 @@ router.post('/update-quantities', checkPermission('Update_quantities'), async (r
       const storage = await Storage.findById(storageId);
       if (!storage) {
         return res.status(404).json({ message: `Storage with id ${storageId} not found` });
+      }
+
+      // If partitionId is provided, validate it
+      let partition;
+      if (partitionId) {
+        partition = storage.partitions.id(partitionId);
+        if (!partition) {
+          return res.status(404).json({ message: `Partition with id ${partitionId} not found` });
+        }
       }
 
       // Update price directly with the new value
@@ -144,16 +153,19 @@ router.post('/update-quantities', checkPermission('Update_quantities'), async (r
         originalPrice: price, 
         originalCost: cost, 
         storage: storageId,
+        partition: partitionId || null,
         dateAdded: dateAdded || new Date(),
         note: note || ''
       });
 
       // Update storage quantities
-      const storageQuantity = existingItem.storageQuantities.find(sq => sq.storage.toString() === storageId);
+      const storageQuantity = existingItem.storageQuantities.find(sq => 
+        sq.storage && sq.storage.toString() === storageId && (!partitionId || (sq.partition && sq.partition.toString() === partitionId))
+      );
       if (storageQuantity) {
         storageQuantity.quantity = Number(storageQuantity.quantity) + Number(quantity);
       } else {
-        existingItem.storageQuantities.push({ storage: storageId, quantity: Number(quantity) });
+        existingItem.storageQuantities.push({ storage: storageId, partition: partitionId || null, quantity: Number(quantity) });
       }
 
       await existingItem.save();
@@ -451,20 +463,36 @@ router.post('/items/storage-quantities', async (req, res) => {
 
     // Find the items in the database
     const foundItems = await Item.find({ _id: { $in: items } })
-    .select('name productId storageQuantities')
-    .populate('storageQuantities.storage', 'name location');  
+      .select('name productId storageQuantities')
+      .populate({
+        path: 'storageQuantities.storage',
+        select: 'name location partitions',  // Select the storage details along with partitions
+        populate: {
+          path: 'partitions',
+          select: 'name location'  // Select the partition details
+        }
+      });
 
-    // Transform the data to include storage quantities with storage details
+    // Transform the data to include storage quantities with storage and partition details
     const result = foundItems.map(item => ({
       itemId: item._id,
       name: item.name,
       productId: item.productId,
-      storageQuantities: item.storageQuantities.map(sq => ({
-        storageId: sq.storage._id,
-        storageName: sq.storage.name,
-        storageLocation: sq.storage.location,
-        quantity: sq.quantity
-      }))
+      storageQuantities: item.storageQuantities.map(sq => {
+        const partitionDetails = sq.partition
+          ? sq.storage.partitions.id(sq.partition)
+          : null;
+
+        return {
+          storageId: sq.storage._id,
+          storageName: sq.storage.name,
+          storageLocation: sq.storage.location,
+          partitionId: sq.partition ? sq.partition._id : null,
+          partitionName: partitionDetails ? partitionDetails.name : null,
+          partitionLocation: partitionDetails ? partitionDetails.location : null,
+          quantity: sq.quantity
+        };
+      })
     }));
 
     res.status(200).json(result);

@@ -63,11 +63,55 @@ router.post('/create-storage', checkPermission('Create_Storage'), async (req, re
 // List Storages
 router.get('/list-storages', checkPermission('List_Storages'), async (req, res) => {
   try {
-    const storages = await Storage.find();
-    res.status(200).json(storages);
+    const storages = await Storage.find().lean();
+
+    const storageDetails = storages.map(storage => ({
+      storageId: storage._id,
+      storageName: storage.name,
+      storageLocation: storage.location,
+      partitions: (storage.partitions || []).map(partition => ({
+        partitionId: partition._id,
+        partitionName: partition.name,
+        partitionLocation: partition.location
+      }))
+    }));
+
+    res.status(200).json(storageDetails);
+  } catch (error) {
+    console.error('Error fetching storages:', error.message);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+//add partition to storage
+router.post('/add-partition', checkPermission('Add_Partition'), async (req, res) => {
+  const { storageId, name, location, capacity } = req.body;
+
+  if (!storageId || !name || !location) {
+    return res.status(400).json({ message: 'Storage ID, name, and location are required' });
+  }
+
+  try {
+    const storage = await Storage.findById(storageId);
+
+    if (!storage) {
+      return res.status(404).json({ message: 'Storage not found' });
+    }
+
+    const newPartition = {
+      name,
+      location,
+      capacity: capacity || 0  // optional
+    };
+
+    storage.partitions.push(newPartition);
+    await storage.save();
+
+    res.status(201).json({ message: 'Partition added successfully', storage });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
+
 
 module.exports = router;

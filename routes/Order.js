@@ -565,56 +565,93 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
 
   try {
     const { id } = req.params;
-    const { storageSelections } = req.body; // Expecting an object of storage selections
-    console.log(req.body)
+    const { storageSelections } = req.body;
+
+    console.log('Request params:', id);
+    console.log('Request body:', storageSelections);
 
     const order = await Order.findById(id).session(session);
     if (!order) {
+      console.log('Order not found:', id);
       await session.abortTransaction();
       session.endSession();
       return res.status(404).json({ message: 'Order not found' });
     }
 
+    console.log('Order found:', order);
+
     if (order.workflowStatus !== 'MaterialManagement') {
+      console.log('Order not in Material Management stage:', order.workflowStatus);
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({ message: 'Order is not in Material Management stage' });
     }
 
-    for (const [itemId, storageId] of Object.entries(storageSelections)) {
+    for (const [itemId, { storageId, partitionId }] of Object.entries(storageSelections)) {
+      console.log('Processing item:', itemId, 'with storageId:', storageId, 'and partitionId:', partitionId);
+
       const orderItem = order.items.find(oi => oi.item.toString() === itemId);
 
       if (!orderItem) {
+        console.log('Order item not found:', itemId);
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({ message: `Invalid selection for item: ${itemId}` });
       }
 
+      console.log('Order item found:', orderItem);
+
       const item = await Item.findById(itemId).session(session);
       if (!item) {
+        console.log('Item not found:', itemId);
         await session.abortTransaction();
         session.endSession();
         return res.status(404).json({ message: `Item not found: ${itemId}` });
       }
 
-      // Update quantities
+      console.log('Item found:', item);
+
+      // Update reserved and total quantities
       item.reservedQuantity = Number(item.reservedQuantity) - Number(orderItem.quantity);
       item.totalQuantity = Number(item.totalQuantity) - Number(orderItem.quantity);
 
-      const storageQuantity = item.storageQuantities.find(sq => sq.storage.toString() === storageId);
+      console.log('Updated reservedQuantity:', item.reservedQuantity, 'Updated totalQuantity:', item.totalQuantity);
+
+      // Find the storageQuantity record that matches the storageId and optional partitionId
+      let storageQuantity = item.storageQuantities.find(sq => 
+        sq.storage && sq.storage.toString() === storageId && 
+        (!partitionId && !sq.partition)  // Matches storage without a partition
+      );
+
+      console.log('Storage quantity without partition:', storageQuantity);
+
+      if (!storageQuantity && partitionId) {
+        // If storageQuantity wasn't found and partitionId is provided, try finding the storage with the partition
+        storageQuantity = item.storageQuantities.find(sq => 
+          sq.storage && sq.storage.toString() === storageId && 
+          sq.partition && sq.partition.toString() === partitionId
+        );
+      }
+
+      console.log('Final storage quantity:', storageQuantity);
+
       if (!storageQuantity) {
+        console.log('Storage/Partition not found for item:', itemId);
         await session.abortTransaction();
         session.endSession();
-        return res.status(400).json({ message: `Storage not found for item: ${itemId}` });
+        return res.status(400).json({ message: `Storage/Partition not found for item: ${itemId}` });
       }
 
       if (Number(storageQuantity.quantity) < Number(orderItem.quantity)) {
+        console.log('Not enough quantity in the selected storage/partition:', storageQuantity.quantity);
         await session.abortTransaction();
         session.endSession();
-        return res.status(400).json({ message: `Not enough quantity in the selected storage for item: ${item.name}` });
+        return res.status(400).json({ message: `Not enough quantity in the selected storage/partition for item: ${item.name}` });
       }
 
+      // Deduct the quantity from the storage/partition
       storageQuantity.quantity = Number(storageQuantity.quantity) - Number(orderItem.quantity);
+      console.log('Deducted quantity, new quantity:', storageQuantity.quantity);
       await item.save({ session });
     }
 
@@ -622,11 +659,13 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
     order.workflowStatus = 'Completed';
     order.status = 'Completed';
     order.actions.push({ action: 'Order Delivered', user: req.adminId });
+    console.log('Order status updated to Completed');
     await order.save({ session });
 
     await session.commitTransaction();
     session.endSession();
 
+    console.log('Order processed successfully');
     res.status(200).json({ message: 'Order processed and quantities updated successfully', order });
   } catch (error) {
     await session.abortTransaction();
@@ -664,14 +703,16 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
     for (const orderItem of order.items) {
       const item = await Item.findById(orderItem.item).session(session);
       if (item) {
-        const storageId = storageSelections[orderItem.item.toString()];
+        const { storageId, partitionId } = storageSelections[orderItem.item.toString()] || {};
         if (!storageId) {
           await session.abortTransaction();
           session.endSession();
           return res.status(400).json({ message: `Storage not selected for item: ${orderItem.item}` });
         }
 
-        const storageQuantity = item.storageQuantities.find(sq => sq.storage.toString() === storageId);
+        const storageQuantity = item.storageQuantities.find(sq =>
+          sq.storage.toString() === storageId && (!partitionId || sq.partition?.toString() === partitionId)
+        );
         if (!storageQuantity || storageQuantity.quantity < orderItem.quantity) {
           await session.abortTransaction();
           session.endSession();
@@ -696,7 +737,7 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
 
     // Move items to the trash schema and update item quantities
     for (const orderItem of order.items) {
-      const storageId = storageSelections[orderItem.item.toString()];
+      const { storageId, partitionId } = storageSelections[orderItem.item.toString()] || {};
 
       const trash = new Trash({
         item: orderItem.item,
@@ -707,15 +748,19 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
 
       const item = await Item.findById(orderItem.item).session(session);
       if (item) {
-        item.reservedQuantity = Number(item.reservedQuantity) - Number(orderItem.quantity); // Convert to numbers before subtraction
-        item.totalQuantity = Number(item.totalQuantity) - Number(orderItem.quantity); // Convert to numbers before subtraction
-        const storageQuantity = item.storageQuantities.find(sq => sq.storage.toString() === storageId);
+        item.reservedQuantity = Number(item.reservedQuantity) - Number(orderItem.quantity);
+        item.totalQuantity = Number(item.totalQuantity) - Number(orderItem.quantity);
+
+        const storageQuantity = item.storageQuantities.find(sq =>
+          sq.storage.toString() === storageId && (!partitionId || sq.partition?.toString() === partitionId)
+        );
+
         if (storageQuantity) {
-          storageQuantity.quantity = Number(storageQuantity.quantity) - Number(orderItem.quantity); // Convert to numbers before subtraction
+          storageQuantity.quantity = Number(storageQuantity.quantity) - Number(orderItem.quantity);
         } else {
           await session.abortTransaction();
           session.endSession();
-          return res.status(400).json({ message: `Storage not found for item: ${orderItem.item}` });
+          return res.status(400).json({ message: `Storage/Partition not found for item: ${orderItem.item}` });
         }
         await item.save({ session });
       }

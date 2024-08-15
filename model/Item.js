@@ -23,11 +23,13 @@ const itemSchema = new Schema({
     originalPrice: { type: Number, required: true },
     originalCost: { type: Number, required: true },
     storage: { type: Schema.Types.ObjectId, ref: 'Storage', required: true },
+    partition: { type: Schema.Types.ObjectId, ref: 'Storage.partitions' },  // Reference to partition if applicable
     dateAdded: { type: Date, default: Date.now },
     note: { type: String, default: '' }
   }],
   storageQuantities: [{
     storage: { type: Schema.Types.ObjectId, ref: 'Storage', required: true },
+    partition: { type: Schema.Types.ObjectId, ref: 'Storage.partitions' },  // Reference to partition if applicable
     quantity: { type: Number, required: true }
   }]
 });
@@ -35,3 +37,4 @@ const itemSchema = new Schema({
 const Item = mongoose.model('Item', itemSchema);
 
 module.exports = Item;
+
