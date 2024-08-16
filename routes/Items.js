@@ -456,20 +456,38 @@ router.get('/item-storages/:itemId', async (req, res) => {
 router.post('/items/storage-quantities', async (req, res) => {
   try {
     const { items } = req.body; // Expecting an array of item IDs or product IDs
+    const token = req.headers.authorization.split(' ')[1]; // Extract token from header
+    const decodedToken = jwt.verify(token, "your_jwt_secret"); // Verify token
+    const userId = decodedToken.id;
 
     if (!items || !Array.isArray(items)) {
       return res.status(400).json({ error: 'Invalid input: items must be an array' });
     }
 
-    // Find the items in the database
+    // Fetch the user and their roles
+    const user = await Admin.findById(userId).populate('roles');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get all permissions related to storages
+    const storagePermissions = user.roles.reduce((acc, role) => {
+      return acc.concat(role.permissions.filter(permission => permission.startsWith('View_Storage_')));
+    }, []);
+
+    // Extract the storage IDs from permissions (assuming they follow a pattern like 'View_Storage_<StorageID>')
+    const allowedStorageIds = storagePermissions.map(permission => permission.split('_').pop());
+
+    // Find the items in the database and populate the storages
     const foundItems = await Item.find({ _id: { $in: items } })
       .select('name productId storageQuantities')
       .populate({
         path: 'storageQuantities.storage',
-        select: 'name location partitions',  // Select the storage details along with partitions
+        match: { _id: { $in: allowedStorageIds } }, // Filter storages based on permissions
+        select: 'name location partitions', // Select the storage details along with partitions
         populate: {
           path: 'partitions',
-          select: 'name location'  // Select the partition details
+          select: 'name location' // Select the partition details
         }
       });
 
@@ -478,21 +496,23 @@ router.post('/items/storage-quantities', async (req, res) => {
       itemId: item._id,
       name: item.name,
       productId: item.productId,
-      storageQuantities: item.storageQuantities.map(sq => {
-        const partitionDetails = sq.partition
-          ? sq.storage.partitions.id(sq.partition)
-          : null;
+      storageQuantities: item.storageQuantities
+        .filter(sq => sq.storage) // Filter out any storage that wasn't populated due to permissions
+        .map(sq => {
+          const partitionDetails = sq.partition
+            ? sq.storage.partitions.id(sq.partition)
+            : null;
 
-        return {
-          storageId: sq.storage._id,
-          storageName: sq.storage.name,
-          storageLocation: sq.storage.location,
-          partitionId: sq.partition ? sq.partition._id : null,
-          partitionName: partitionDetails ? partitionDetails.name : null,
-          partitionLocation: partitionDetails ? partitionDetails.location : null,
-          quantity: sq.quantity
-        };
-      })
+          return {
+            storageId: sq.storage._id,
+            storageName: sq.storage.name,
+            storageLocation: sq.storage.location,
+            partitionId: sq.partition ? sq.partition._id : null,
+            partitionName: partitionDetails ? partitionDetails.name : null,
+            partitionLocation: partitionDetails ? partitionDetails.location : null,
+            quantity: sq.quantity
+          };
+        })
     }));
 
     res.status(200).json(result);
