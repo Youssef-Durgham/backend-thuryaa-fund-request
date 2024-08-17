@@ -237,7 +237,7 @@ router.post('/login/admin', async (req, res) => {
         return res.status(403).json({ message: 'Password change required' });
       }
   
-      const token = jwt.sign({ id: admin._id, userType: 'admin' }, 'your_jwt_secret', { expiresIn: '365d' });
+      const token = jwt.sign({ id: admin._id, userType: 'admin', phone: admin.phone, name:admin.name }, 'your_jwt_secret', { expiresIn: '365d' });
   
       // Log the login
       const loginHistory = new LoginHistory({
