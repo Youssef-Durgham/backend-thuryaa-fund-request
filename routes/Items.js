@@ -80,9 +80,9 @@ router.post('/define-items', checkPermission('Define_items'), async (req, res) =
         category,
         subcategory,
         supplier,
-        UOM,
-        Specification,
-        Brand,
+        UOM,              // Ensure UOM is being saved
+        Specification,    // Ensure Specification is being saved
+        Brand,            // Ensure Brand is being saved
         inventory: []
       });
 
@@ -199,7 +199,7 @@ router.get('/items/supplier/:supplierId', checkPermission('Search_Items'), async
     const totalItems = await Item.countDocuments({ supplier: supplierId });
     const totalPages = Math.ceil(totalItems / limit);
     const items = await Item.find({ supplier: supplierId })
-      .select('name productId mainImageUrl price cost totalQuantity profitPercentage category subcategory storageQuantities supplier')
+      .select('name productId mainImageUrl price cost totalQuantity profitPercentage category subcategory storageQuantities supplier UOM Specification Brand')
       .populate('category', 'name')
       .populate('subcategory', 'name')
       .populate('storageQuantities.storage', 'name')
