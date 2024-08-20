@@ -9,6 +9,7 @@ const Wallet = require('../model/Wallet');
 const Trash = require('../model/Trash');
 const Counter = require('../model/Counter');
 const mongoose = require('mongoose');
+const TransactionOrder = require('../model/TransactionsOrder');
 
 const router = express.Router();
 
@@ -356,7 +357,6 @@ router.get('/orders', checkPermission('Search_order'), async (req, res) => {
 router.get('/order/:id', checkPermission('Search_order'), async (req, res) => {
   try {
     const { id } = req.params;
-
     const order = await Order.findById(id)
       .populate('customer')
       .populate({
@@ -367,16 +367,24 @@ router.get('/order/:id', checkPermission('Search_order'), async (req, res) => {
         path: 'actions.user',
         select: 'name phone'
       })
-      .lean();  // Convert to plain JavaScript object
+      .lean(); // Convert to plain JavaScript object
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
     }
 
     // Add the orderId to the order object
-    order.id = order._id;  // Ensure the id is also included if needed
-    order.workflowStatus =order.workflowStatus;
+    order.id = order._id;
+    order.workflowStatus = order.workflowStatus;
     order.orderId = order.orderId;
+
+    // Calculate delivered and remaining quantities for each item
+    order.items = order.items.map(item => ({
+      ...item,
+      deliveredQuantity: item.deliveredQuantity || 0,
+      cancelledQuantity: item.cancelledQuantity || 0,
+      remainingQuantity: item.quantity - (item.deliveredQuantity || 0) - (item.cancelledQuantity || 0)
+    }));
 
     res.status(200).json({ order });
   } catch (error) {
@@ -425,13 +433,13 @@ router.post('/activate-order-casher/:id', checkPermission('activate_order_casher
 
   try {
     const { id } = req.params;
-
     const order = await Order.findById(id).populate('items.item').session(session);
     if (!order) {
       await session.abortTransaction();
       session.endSession();
       return res.status(404).json({ message: 'Order not found' });
     }
+
     if (order.status !== 'Activated' || order.workflowStatus !== 'Casher') {
       await session.abortTransaction();
       session.endSession();
@@ -442,6 +450,21 @@ router.post('/activate-order-casher/:id', checkPermission('activate_order_casher
     const totalOrderPrice = order.items.reduce((total, orderItem) => {
       return total + (orderItem.item.price * orderItem.quantity);
     }, 0);
+
+    // Create transaction
+    const transaction = new TransactionOrder({
+      order: order._id,
+      type: 'Post',
+      items: order.items.map(item => ({
+        item: item.item._id,
+        quantity: item.quantity,
+        price: item.item.price
+      })),
+      amount: totalOrderPrice,
+      performedBy: req.adminId,
+      performedByType: 'Casher'
+    });
+    await transaction.save({ session });
 
     // Update order workflow status
     order.workflowStatus = 'MaterialManagement';
@@ -460,11 +483,10 @@ router.post('/activate-order-casher/:id', checkPermission('activate_order_casher
     await session.commitTransaction();
     session.endSession();
 
-    res.status(200).json({ message: 'Order processed and cash updated successfully', order });
+    res.status(200).json({ message: 'Order processed and cash updated successfully', order, transaction });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-
     console.log('Order processing error:', error);
     res.status(500).json({ message: 'Internal server error', error: error.message });
   }
@@ -565,112 +587,124 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
 
   try {
     const { id } = req.params;
-    const { storageSelections } = req.body;
+    const { storageSelections, items, type } = req.body;
 
-    console.log('Request params:', id);
-    console.log('Request body:', storageSelections);
-
-    const order = await Order.findById(id).session(session);
+    const order = await Order.findById(id).populate('items.item').session(session);
     if (!order) {
-      console.log('Order not found:', id);
       await session.abortTransaction();
       session.endSession();
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    console.log('Order found:', order);
-
     if (order.workflowStatus !== 'MaterialManagement') {
-      console.log('Order not in Material Management stage:', order.workflowStatus);
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({ message: 'Order is not in Material Management stage' });
     }
 
-    for (const [itemId, { storageId, partitionId }] of Object.entries(storageSelections)) {
-      console.log('Processing item:', itemId, 'with storageId:', storageId, 'and partitionId:', partitionId);
+    const deliveredItems = [];
+    let totalAmount = 0;
+    let isFullDelivery = type === 'full';
 
-      const orderItem = order.items.find(oi => oi.item.toString() === itemId);
-
+    for (const { itemId, quantity } of items) {
+      const orderItem = order.items.find(oi => oi.item._id.toString() === itemId);
       if (!orderItem) {
-        console.log('Order item not found:', itemId);
         await session.abortTransaction();
         session.endSession();
-        return res.status(400).json({ message: `Invalid selection for item: ${itemId}` });
+        return res.status(400).json({ message: `Invalid item: ${itemId}` });
       }
 
-      console.log('Order item found:', orderItem);
-
-      const item = await Item.findById(itemId).session(session);
-      if (!item) {
-        console.log('Item not found:', itemId);
+      const remainingQuantity = orderItem.quantity - (orderItem.deliveredQuantity || 0) - (orderItem.cancelledQuantity || 0);
+      if (Number(quantity) > remainingQuantity) {
         await session.abortTransaction();
         session.endSession();
-        return res.status(404).json({ message: `Item not found: ${itemId}` });
+        return res.status(400).json({ message: `Delivery quantity exceeds remaining quantity for item: ${itemId}` });
       }
 
-      console.log('Item found:', item);
+      const { storageId, partitionId } = storageSelections[itemId] || {};
+      if (!storageId) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: `Storage not selected for item: ${itemId}` });
+      }
 
-      // Update reserved and total quantities
-      item.reservedQuantity = Number(item.reservedQuantity) - Number(orderItem.quantity);
-      item.totalQuantity = Number(item.totalQuantity) - Number(orderItem.quantity);
-
-      console.log('Updated reservedQuantity:', item.reservedQuantity, 'Updated totalQuantity:', item.totalQuantity);
-
-      // Find the storageQuantity record that matches the storageId and optional partitionId
-      let storageQuantity = item.storageQuantities.find(sq => 
-        sq.storage && sq.storage.toString() === storageId && 
-        (!partitionId && !sq.partition)  // Matches storage without a partition
+      let storageQuantity = orderItem.item.storageQuantities.find(sq =>
+        sq.storage.toString() === storageId &&
+        (!partitionId && !sq.partition || (sq.partition && sq.partition.toString() === partitionId))
       );
 
-      console.log('Storage quantity without partition:', storageQuantity);
-
-      if (!storageQuantity && partitionId) {
-        // If storageQuantity wasn't found and partitionId is provided, try finding the storage with the partition
-        storageQuantity = item.storageQuantities.find(sq => 
-          sq.storage && sq.storage.toString() === storageId && 
-          sq.partition && sq.partition.toString() === partitionId
-        );
-      }
-
-      console.log('Final storage quantity:', storageQuantity);
-
       if (!storageQuantity) {
-        console.log('Storage/Partition not found for item:', itemId);
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({ message: `Storage/Partition not found for item: ${itemId}` });
       }
 
-      if (Number(storageQuantity.quantity) < Number(orderItem.quantity)) {
-        console.log('Not enough quantity in the selected storage/partition:', storageQuantity.quantity);
+      if (Number(storageQuantity.quantity) < Number(quantity)) {
         await session.abortTransaction();
         session.endSession();
-        return res.status(400).json({ message: `Not enough quantity in the selected storage/partition for item: ${item.name}` });
+        return res.status(400).json({ message: `Not enough quantity in the selected storage/partition for item: ${orderItem.item.name}` });
       }
 
       // Deduct the quantity from the storage/partition
-      storageQuantity.quantity = Number(storageQuantity.quantity) - Number(orderItem.quantity);
-      console.log('Deducted quantity, new quantity:', storageQuantity.quantity);
-      await item.save({ session });
+      storageQuantity.quantity = Math.max(0, Number(storageQuantity.quantity) - Number(quantity));
+      orderItem.item.reservedQuantity = Math.max(0, Number(orderItem.item.reservedQuantity) - Number(quantity));
+      
+      // Ensure we're not setting any NaN values
+      if (isNaN(storageQuantity.quantity) || isNaN(orderItem.item.reservedQuantity)) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: `Invalid quantity calculation for item: ${itemId}` });
+      }
+
+      await orderItem.item.save({ session });
+
+      // Update order item delivered quantity
+      orderItem.deliveredQuantity = (orderItem.deliveredQuantity || 0) + Number(quantity);
+
+      deliveredItems.push({
+        item: orderItem.item._id,
+        quantity: Number(quantity),
+        price: orderItem.item.price
+      });
+      totalAmount += Number(orderItem.item.price) * Number(quantity);
+
+      if (orderItem.deliveredQuantity + (orderItem.cancelledQuantity || 0) < orderItem.quantity) {
+        isFullDelivery = false;
+      }
     }
 
+    // Create transaction
+    const transaction = new TransactionOrder({
+      order: order._id,
+      type: isFullDelivery ? 'FullDelivery' : 'PartialDelivery',
+      items: deliveredItems,
+      amount: totalAmount,
+      performedBy: req.adminId,
+      performedByType: 'Mm'
+    });
+    await transaction.save({ session });
+
     // Update order status
-    order.workflowStatus = 'Completed';
-    order.status = 'Completed';
-    order.actions.push({ action: 'Order Delivered', user: req.adminId });
-    console.log('Order status updated to Completed');
+    if (isFullDelivery) {
+      order.workflowStatus = 'Completed';
+      order.status = 'Completed';
+    } else {
+      order.status = 'PartiallyDelivered';
+    }
+    order.actions.push({ action: isFullDelivery ? 'Order Fully Delivered' : 'Order Partially Delivered', user: req.adminId });
     await order.save({ session });
 
     await session.commitTransaction();
     session.endSession();
 
-    console.log('Order processed successfully');
-    res.status(200).json({ message: 'Order processed and quantities updated successfully', order });
+    res.status(200).json({ 
+      message: `Order ${isFullDelivery ? 'fully' : 'partially'} delivered and quantities updated successfully`, 
+      order, 
+      transaction 
+    });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-
     console.error('Order processing error:', error.message);
     res.status(500).json({ message: 'Internal server error', error: error.message });
   }
@@ -683,9 +717,11 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
 
   try {
     const { id } = req.params;
-    const { storageSelections } = req.body; // Expecting an object of storage selections
+    const { items, type } = req.body;
 
-    const order = await Order.findById(id).session(session);
+    console.log('Cancellation request:', { id, items, type }); // Log the incoming request
+
+    const order = await Order.findById(id).populate('items.item').session(session);
     if (!order) {
       await session.abortTransaction();
       session.endSession();
@@ -698,32 +734,104 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
       return res.status(400).json({ message: 'Order is not in Material Management stage' });
     }
 
-    // Calculate the total amount of the order by summing the price * quantity for each item
     let totalAmount = 0;
-    for (const orderItem of order.items) {
-      const item = await Item.findById(orderItem.item).session(session);
-      if (item) {
-        const { storageId, partitionId } = storageSelections[orderItem.item.toString()] || {};
-        if (!storageId) {
-          await session.abortTransaction();
-          session.endSession();
-          return res.status(400).json({ message: `Storage not selected for item: ${orderItem.item}` });
-        }
+    const cancelledItems = [];
+    let isFullCancellation = type === 'full';
 
-        const storageQuantity = item.storageQuantities.find(sq =>
-          sq.storage.toString() === storageId && (!partitionId || sq.partition?.toString() === partitionId)
-        );
-        if (!storageQuantity || storageQuantity.quantity < orderItem.quantity) {
-          await session.abortTransaction();
-          session.endSession();
-          return res.status(400).json({ message: `Not enough quantity in storage for item: ${item.name}` });
-        }
+    for (const { itemId, quantity, storageId, partitionId } of items) {
+      console.log('Processing item:', { itemId, quantity, storageId, partitionId }); // Log each item being processed
 
-        totalAmount += Number(item.price) * Number(orderItem.quantity);
-      } else {
+      const orderItem = order.items.find(oi => oi.item._id.toString() === itemId);
+      if (!orderItem) {
         await session.abortTransaction();
         session.endSession();
-        return res.status(400).json({ message: `Item not found: ${orderItem.item}` });
+        return res.status(400).json({ message: `Invalid selection for item: ${itemId}` });
+      }
+
+      const remainingQuantity = orderItem.quantity - (orderItem.deliveredQuantity || 0) - (orderItem.cancelledQuantity || 0);
+      const cancelQuantity = Number(quantity);
+
+      console.log('Item quantities:', { 
+        itemId, 
+        totalQuantity: orderItem.quantity, 
+        deliveredQuantity: orderItem.deliveredQuantity, 
+        cancelledQuantity: orderItem.cancelledQuantity, 
+        remainingQuantity, 
+        requestedCancelQuantity: cancelQuantity 
+      }); // Log quantity details
+
+      if (isNaN(cancelQuantity) || cancelQuantity <= 0) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: `Invalid cancellation quantity for item: ${itemId}` });
+      }
+
+      if (cancelQuantity > remainingQuantity) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: `Cancellation quantity exceeds remaining quantity for item: ${itemId}` });
+      }
+
+      const storageQuantity = orderItem.item.storageQuantities.find(sq =>
+        sq.storage.toString() === storageId && (!partitionId || sq.partition?.toString() === partitionId)
+      );
+
+      if (!storageQuantity) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: `Storage/Partition not found for item: ${itemId}` });
+      }
+
+      const itemPrice = Number(orderItem.item.price);
+      if (isNaN(itemPrice)) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: `Invalid price for item: ${itemId}` });
+      }
+
+      totalAmount += itemPrice * cancelQuantity;
+      cancelledItems.push({
+        item: orderItem.item._id,
+        quantity: cancelQuantity,
+        price: itemPrice
+      });
+
+      // Update item quantities
+      const newReservedQuantity = Math.max(0, Number(orderItem.item.reservedQuantity) - cancelQuantity);
+      const newTotalQuantity = Number(orderItem.item.totalQuantity) + cancelQuantity;
+      const newStorageQuantity = Number(storageQuantity.quantity) + cancelQuantity;
+
+      console.log('Updated quantities:', { 
+        itemId, 
+        newReservedQuantity, 
+        newTotalQuantity, 
+        newStorageQuantity 
+      }); // Log updated quantities
+
+      if (isNaN(newReservedQuantity) || isNaN(newTotalQuantity) || isNaN(newStorageQuantity)) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: `Invalid quantity calculation for item: ${itemId}` });
+      }
+
+      orderItem.item.reservedQuantity = newReservedQuantity;
+      orderItem.item.totalQuantity = newTotalQuantity;
+      storageQuantity.quantity = newStorageQuantity;
+      await orderItem.item.save({ session });
+
+      // Update order item cancelled quantity
+      orderItem.cancelledQuantity = (orderItem.cancelledQuantity || 0) + cancelQuantity;
+
+      // Move to trash
+      const trash = new Trash({
+        item: orderItem.item._id,
+        quantity: cancelQuantity,
+        reason: 'Cancelled Order - Bad Item'
+      });
+      await trash.save({ session });
+
+      if (orderItem.deliveredQuantity + orderItem.cancelledQuantity < orderItem.quantity) {
+        isFullCancellation = false;
       }
     }
 
@@ -732,53 +840,48 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
     if (!wallet) {
       wallet = new Wallet({ user: order.customer });
     }
-    wallet.balance = Number(wallet.balance) + totalAmount; // Use the calculated totalAmount
+    wallet.balance = Number(wallet.balance) + totalAmount;
     await wallet.save({ session });
 
-    // Move items to the trash schema and update item quantities
-    for (const orderItem of order.items) {
-      const { storageId, partitionId } = storageSelections[orderItem.item.toString()] || {};
-
-      const trash = new Trash({
-        item: orderItem.item,
-        quantity: orderItem.quantity,
-        reason: 'Cancelled Order - Bad Item'
-      });
-      await trash.save({ session });
-
-      const item = await Item.findById(orderItem.item).session(session);
-      if (item) {
-        item.reservedQuantity = Number(item.reservedQuantity) - Number(orderItem.quantity);
-        item.totalQuantity = Number(item.totalQuantity) - Number(orderItem.quantity);
-
-        const storageQuantity = item.storageQuantities.find(sq =>
-          sq.storage.toString() === storageId && (!partitionId || sq.partition?.toString() === partitionId)
-        );
-
-        if (storageQuantity) {
-          storageQuantity.quantity = Number(storageQuantity.quantity) - Number(orderItem.quantity);
-        } else {
-          await session.abortTransaction();
-          session.endSession();
-          return res.status(400).json({ message: `Storage/Partition not found for item: ${orderItem.item}` });
-        }
-        await item.save({ session });
-      }
-    }
+    // Create transaction
+    const transaction = new TransactionOrder({
+      order: order._id,
+      type: isFullCancellation ? 'FullCancellation' : 'PartialCancellation',
+      items: cancelledItems,
+      amount: totalAmount,
+      performedBy: req.adminId,
+      performedByType: 'Mm'
+    });
+    await transaction.save({ session });
 
     // Update order status
-    order.status = 'Cancelled';
-    order.actions.push({ action: 'Order Cancelled', user: req.adminId });
+    if (isFullCancellation) {
+      order.status = 'Cancelled';
+      order.workflowStatus = 'Cancelled';
+    } else {
+      order.status = 'PartiallyCancelled';
+    }
+    order.actions.push({ action: isFullCancellation ? 'Order Fully Cancelled' : 'Order Partially Cancelled', user: req.adminId });
     await order.save({ session });
 
     await session.commitTransaction();
     session.endSession();
 
-    res.status(200).json({ message: 'Order cancelled, refund processed, and items moved to trash', order });
+    console.log('Cancellation successful:', { 
+      orderId: order._id, 
+      isFullCancellation, 
+      totalAmount, 
+      cancelledItems 
+    }); // Log successful cancellation
+
+    res.status(200).json({ 
+      message: `Order ${isFullCancellation ? 'fully' : 'partially'} cancelled, refund processed, and items moved to trash`, 
+      order, 
+      transaction 
+    });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-
     console.error('Order cancellation error:', error.message);
     res.status(500).json({ message: 'Internal server error', error: error.message });
   }
@@ -815,6 +918,7 @@ router.post('/create-order-mobile', authMiddleware, async (req, res) => {
 
   try {
     const { items } = req.body;
+    let totalOrderPrice = 0;
 
     // Check item quantities
     for (const orderItem of items) {
@@ -830,8 +934,10 @@ router.post('/create-order-mobile', authMiddleware, async (req, res) => {
         session.endSession();
         return res.status(420).json({ message: `Not enough quantity for item: ${item.name}` });
       }
-      item.reservedQuantity = Number(item.reservedQuantity) + Number(orderItem.quantity); // Convert to numbers before addition
+      item.reservedQuantity = Number(item.reservedQuantity) + Number(orderItem.quantity);
       await item.save({ session });
+
+      totalOrderPrice += Number(item.price) * Number(orderItem.quantity);
     }
 
     // Get next order ID
@@ -848,14 +954,28 @@ router.post('/create-order-mobile', authMiddleware, async (req, res) => {
     });
     await order.save({ session });
 
+    // Create transaction
+    const transaction = new TransactionOrder({
+      order: order._id,
+      type: 'Post',
+      items: items.map(item => ({
+        item: item.item,
+        quantity: item.quantity,
+        price: item.price
+      })),
+      amount: totalOrderPrice,
+      performedBy: req.customer._id,
+      performedByType: 'Customer'
+    });
+    await transaction.save({ session });
+
     await session.commitTransaction();
     session.endSession();
 
-    res.status(201).json({ message: 'Order created successfully', order });
+    res.status(201).json({ message: 'Order created successfully', order, transaction });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-
     console.error('Order creation error:', error.message);
     res.status(500).json({ message: 'Internal server error', error: error.message });
   }

@@ -572,7 +572,7 @@ router.get('/item/:productId', async (req, res) => {
 
     // Ensure productId is a valid ObjectId
     const item = await Item.findOne({ _id: new mongoose.Types.ObjectId(productId) })
-      .select('_id name productId mainImageUrl images price cost totalQuantity category subcategory supplier description');
+      .select('_id name productId mainImageUrl images price cost totalQuantity category subcategory supplier description UOM Specification Brand');
 
     if (!item) {
       return res.status(404).json({ message: 'Item not found' });
