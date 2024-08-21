@@ -23,6 +23,7 @@ const Trash = require("./routes/Trash");
 const Cart = require("./routes/Cart");
 const Keycard = require("./routes/Keycard");
 const Banner = require("./routes/Banner");
+const Reports = require("./routes/Reports");
 
 // const helmet = require("helmet");
 // const rateLimit = require("express-rate-limit");
@@ -100,6 +101,7 @@ app.use("/Trash", Trash);
 app.use("/Cart", Cart);
 app.use("/Keycard", Keycard);
 app.use("/Banner", Banner);
+app.use("/Reports", Reports);
 
 // Lambda function handler
 module.exports.handler = (event, context, callback) => {
