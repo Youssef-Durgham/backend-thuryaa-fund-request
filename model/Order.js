@@ -14,9 +14,19 @@ const orderSchema = new Schema({
   workflowStatus: { type: String, default: 'Sales' },
   actions: [{
     action: { type: String, required: true },
-    userType: { type: String, required: true, enum: ['Admin', 'Customer'], default: 'Admin' },
+    userType: { type: String, required: true, enum: ['Admin', 'Customer', 'Mm', 'Casher'], default: 'Admin' },
     user: { type: Schema.Types.ObjectId, required: true, refPath: 'actions.userType' },
-    date: { type: Date, default: Date.now }
+    date: { type: Date, default: Date.now },
+    details: {
+      items: [{
+        item: { type: Schema.Types.ObjectId, ref: 'Item' },
+        quantity: Number,
+        deliveredQuantity: Number,
+        cancelledQuantity: Number,
+        price: Number
+      }],
+      totalAmount: Number
+    }
   }],
   createdAt: { type: Date, default: Date.now }
 });

@@ -144,6 +144,27 @@ router.get('/search-customers', checkPermission('create_order'), async (req, res
     res.status(500).json({ error: 'An error occurred while searching for customers' });
   }
 });
+
+router.get('/search-customers-reports', checkPermission('Customer_Report'), async (req, res) => {
+  const { query } = req.query;
+
+  if (!query) {
+    return res.status(400).json({ error: 'Query parameter is required' });
+  }
+
+  try {
+    const customers = await Customer.find({
+      $or: [
+        { phone: { $regex: query, $options: 'i' } },
+        { name: { $regex: query, $options: 'i' } }
+      ]
+    }).select('_id phone name'); // Include _id along with phone and name
+
+    res.json(customers);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while searching for customers' });
+  }
+});
   
   module.exports = router;
   

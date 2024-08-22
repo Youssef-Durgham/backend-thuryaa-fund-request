@@ -75,7 +75,9 @@ router.post('/create-order', checkPermission('create_order'), async (req, res) =
       await customer.save({ session });
     }
 
-    // Check item quantities
+    // Check item quantities and calculate total amount
+    let totalAmount = 0;
+    const orderItems = [];
     for (const orderItem of items) {
       const item = await Item.findById(orderItem.item).session(session);
       if (!item) {
@@ -87,6 +89,13 @@ router.post('/create-order', checkPermission('create_order'), async (req, res) =
       }
       item.reservedQuantity = Number(item.reservedQuantity) + Number(orderItem.quantity);
       await item.save({ session });
+
+      totalAmount += item.price * orderItem.quantity;
+      orderItems.push({
+        item: item._id,
+        quantity: orderItem.quantity,
+        price: item.price
+      });
     }
 
     // Get next order ID
@@ -97,14 +106,15 @@ router.post('/create-order', checkPermission('create_order'), async (req, res) =
       orderId,
       customer: customer._id,
       items,
-      actions: [{ action: 'Order Created', user: req.adminId }]
+      actions: [{
+        action: 'Order Created',
+        user: req.adminId,
+        details: {
+          items: orderItems,
+          totalAmount
+        }
+      }]
     });
-
-    // Check if an order with this ID already exists
-    const existingOrder = await Order.findOne({ orderId }).session(session);
-    if (existingOrder) {
-      throw new Error(`Order with ID ${orderId} already exists`);
-    }
 
     await order.save({ session });
 
@@ -121,32 +131,48 @@ router.post('/create-order', checkPermission('create_order'), async (req, res) =
 
 // Edit order by ID
 router.put('/edit-order/:id', checkPermission('edit_order'), async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { id } = req.params;
-    const { addItems, removeItems, updateItems } = req.body; // Arrays of items to add, remove, or update
-
-    const order = await Order.findById(id);
+    const { addItems, removeItems, updateItems } = req.body;
+    const order = await Order.findById(id).session(session);
     if (!order) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: 'Order not found' });
     }
 
     let actionPerformed = false;
+    let totalAmount = 0;
+    const actionItems = [];
 
     // Add new items to the order
     if (addItems) {
       for (const addItem of addItems) {
-        const item = await Item.findById(addItem.item);
+        const item = await Item.findById(addItem.item).session(session);
         if (!item) {
+          await session.abortTransaction();
+          session.endSession();
           return res.status(404).json({ message: `Item not found: ${addItem.item}` });
         }
         const availableQuantity = item.totalQuantity - item.reservedQuantity;
         if (availableQuantity < addItem.quantity) {
+          await session.abortTransaction();
+          session.endSession();
           return res.status(400).json({ message: `Not enough quantity for item: ${item.name}` });
         }
         item.reservedQuantity = Number(item.reservedQuantity) + Number(addItem.quantity);
-        await item.save();
+        await item.save({ session });
         order.items.push(addItem);
         actionPerformed = true;
+        totalAmount += item.price * addItem.quantity;
+        actionItems.push({
+          item: item._id,
+          quantity: addItem.quantity,
+          price: item.price
+        });
       }
     }
 
@@ -156,13 +182,19 @@ router.put('/edit-order/:id', checkPermission('edit_order'), async (req, res) =>
         const orderItemIndex = order.items.findIndex(orderItem => orderItem.item.toString() === removeItem._id);
         if (orderItemIndex > -1) {
           const orderItem = order.items[orderItemIndex];
-          const item = await Item.findById(orderItem.item);
+          const item = await Item.findById(orderItem.item).session(session);
           if (item) {
             item.reservedQuantity = Number(item.reservedQuantity) - Number(orderItem.quantity);
-            await item.save();
+            await item.save({ session });
           }
           order.items.splice(orderItemIndex, 1);
           actionPerformed = true;
+          totalAmount -= item.price * orderItem.quantity;
+          actionItems.push({
+            item: item._id,
+            quantity: -orderItem.quantity,
+            price: item.price
+          });
         }
       }
     }
@@ -172,31 +204,45 @@ router.put('/edit-order/:id', checkPermission('edit_order'), async (req, res) =>
       for (const updateItem of updateItems) {
         const orderItemIndex = order.items.findIndex(orderItem => orderItem.item.toString() === updateItem.item);
         if (orderItemIndex > -1) {
-          const orderItem = order.items[orderItemIndex];
-          const item = await Item.findById(orderItem.item);
-
+          const oldOrderItem = order.items[orderItemIndex];
+          const item = await Item.findById(oldOrderItem.item).session(session);
           // Adjust reserved quantities
-          item.reservedQuantity = Number(item.reservedQuantity) - Number(orderItem.quantity);
+          item.reservedQuantity = Number(item.reservedQuantity) - Number(oldOrderItem.quantity) + Number(updateItem.quantity);
           const availableQuantity = item.totalQuantity - item.reservedQuantity;
-          if (availableQuantity < updateItem.quantity) {
+          if (availableQuantity < 0) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({ message: `Not enough quantity for item: ${item.name}` });
           }
-          item.reservedQuantity = Number(item.reservedQuantity) + Number(updateItem.quantity);
-          await item.save();
-
+          await item.save({ session });
           // Update order item
           order.items[orderItemIndex] = updateItem;
           actionPerformed = true;
+          totalAmount += item.price * (updateItem.quantity - oldOrderItem.quantity);
+          actionItems.push({
+            item: item._id,
+            quantity: updateItem.quantity - oldOrderItem.quantity,
+            price: item.price
+          });
         }
       }
     }
 
     if (actionPerformed) {
       // Add edit action to the order's actions array
-      order.actions.push({ action: 'Order Edited', user: req.adminId });
+      order.actions.push({
+        action: 'Order Edited',
+        user: req.adminId,
+        details: {
+          items: actionItems,
+          totalAmount
+        }
+      });
     }
 
-    await order.save();
+    await order.save({ session });
+
+    await session.commitTransaction();
 
     // Populate fields as in the GET API response
     const updatedOrder = await Order.findById(id)
@@ -209,43 +255,78 @@ router.put('/edit-order/:id', checkPermission('edit_order'), async (req, res) =>
         path: 'actions.user',
         select: 'name phone'
       })
-      .lean();  // Convert to plain JavaScript object
+      .lean();
 
     if (!updatedOrder) {
       return res.status(404).json({ message: 'Order not found' });
     }
 
     // Add the orderId to the updated order object
-    updatedOrder.id = updatedOrder._id;  // Ensure the id is also included if needed
+    updatedOrder.id = updatedOrder._id;
     updatedOrder.orderId = updatedOrder.orderId;
 
     res.status(200).json({ message: 'Order updated successfully', order: updatedOrder });
   } catch (error) {
+    await session.abortTransaction();
     console.error('Order editing error:', error.message);
     res.status(500).json({ message: 'Internal server error', error: error.message });
+  } finally {
+    session.endSession();
   }
 });
 
 // Activate order
 router.post('/activate-order/:id', checkPermission('activate_order'), async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { id } = req.params;
-    const order = await Order.findById(id);
+    const order = await Order.findById(id).populate('items.item').session(session);
     if (!order) {
+      await session.abortTransaction();
       return res.status(404).json({ message: 'Order not found' });
     }
     if (order.status !== 'Pending') {
+      await session.abortTransaction();
       return res.status(400).json({ message: 'Only pending orders can be activated' });
     }
+
+    // Calculate total amount and prepare items details
+    let totalAmount = 0;
+    const itemsDetails = order.items.map(orderItem => {
+      const itemAmount = orderItem.item.price * orderItem.quantity;
+      totalAmount += itemAmount;
+      return {
+        item: orderItem.item._id,
+        quantity: orderItem.quantity,
+        price: orderItem.item.price,
+        amount: itemAmount
+      };
+    });
+
     order.status = 'Activated';
     order.workflowStatus = 'Casher';
-    order.actions.push({ action: 'Order Activated', user: req.adminId });
-    await order.save();
+    order.actions.push({
+      action: 'Order Activated',
+      user: req.adminId,
+      userType: 'Admin',
+      details: {
+        items: itemsDetails,
+        totalAmount: totalAmount
+      }
+    });
+
+    await order.save({ session });
+    await session.commitTransaction();
 
     res.status(200).json({ message: 'Order activated successfully', order });
   } catch (error) {
+    await session.abortTransaction();
     console.error('Order activation error:', error.message);
     res.status(500).json({ message: 'Internal server error', error: error.message });
+  } finally {
+    session.endSession();
   }
 });
 
@@ -256,44 +337,59 @@ router.post('/cancel-order-sales/:id', checkPermission('cancel_order_sales'), as
 
   try {
     const { id } = req.params;
-
-    const order = await Order.findById(id).session(session);
+    const order = await Order.findById(id).populate('items.item').session(session);
     if (!order) {
       await session.abortTransaction();
-      session.endSession();
       return res.status(404).json({ message: 'Order not found' });
     }
-
     if (order.status === 'Activated') {
       await session.abortTransaction();
-      session.endSession();
       return res.status(400).json({ message: 'Activated orders cannot be cancelled by sales employees' });
     }
 
+    let totalAmount = 0;
+    const itemsDetails = [];
+
     // Return items to available quantity
     for (const orderItem of order.items) {
-      const item = await Item.findById(orderItem.item).session(session);
+      const item = await Item.findById(orderItem.item._id).session(session);
       if (item) {
-        item.reservedQuantity = Number(item.reservedQuantity) - Number(orderItem.quantity); // Convert to numbers before subtraction
+        item.reservedQuantity = Math.max(0, Number(item.reservedQuantity) - Number(orderItem.quantity));
         await item.save({ session });
+
+        const itemAmount = orderItem.item.price * orderItem.quantity;
+        totalAmount += itemAmount;
+        itemsDetails.push({
+          item: item._id,
+          quantity: orderItem.quantity,
+          price: orderItem.item.price,
+          amount: itemAmount
+        });
       }
     }
 
     // Update order status
     order.status = 'Cancelled';
-    order.actions.push({ action: 'Order Cancelled by Sales', user: req.adminId });
-    await order.save({ session });
+    order.actions.push({
+      action: 'Order Cancelled by Sales',
+      user: req.adminId,
+      userType: 'Admin',
+      details: {
+        items: itemsDetails,
+        totalAmount: totalAmount
+      }
+    });
 
+    await order.save({ session });
     await session.commitTransaction();
-    session.endSession();
 
     res.status(200).json({ message: 'Order cancelled successfully', order });
   } catch (error) {
     await session.abortTransaction();
-    session.endSession();
-
     console.error('Order cancellation error:', error.message);
     res.status(500).json({ message: 'Internal server error', error: error.message });
+  } finally {
+    session.endSession();
   }
 });
 
@@ -367,24 +463,102 @@ router.get('/order/:id', checkPermission('Search_order'), async (req, res) => {
         path: 'actions.user',
         select: 'name phone'
       })
-      .lean(); // Convert to plain JavaScript object
+      .lean();
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    // Add the orderId to the order object
     order.id = order._id;
     order.workflowStatus = order.workflowStatus;
     order.orderId = order.orderId;
-
-    // Calculate delivered and remaining quantities for each item
     order.items = order.items.map(item => ({
       ...item,
       deliveredQuantity: item.deliveredQuantity || 0,
       cancelledQuantity: item.cancelledQuantity || 0,
       remainingQuantity: item.quantity - (item.deliveredQuantity || 0) - (item.cancelledQuantity || 0)
     }));
+
+    const transactionOrder = await TransactionOrder.findOne({ order: order._id })
+      .populate({
+        path: 'transactions.items.item',
+        select: 'name price mainImageUrl productId'
+      })
+      .lean();
+
+    if (transactionOrder) {
+      // Populate performedBy for each transaction
+      for (let transaction of transactionOrder.transactions) {
+        if (transaction.performedByType === 'Admin') {
+          transaction.performedBy = await Admin.findById(transaction.performedBy).select('name phone').lean();
+        } else if (transaction.performedByType === 'Customer') {
+          transaction.performedBy = await Customer.findById(transaction.performedBy).select('name phone').lean();
+        }
+        // If it's neither Admin nor Customer, leave it as is
+      }
+    }
+
+    order.transactionHistory = transactionOrder ? transactionOrder.transactions : [];
+
+    // Create a map of item IDs to names for quick lookup
+    const itemNameMap = order.items.reduce((map, item) => {
+      map[item.item._id.toString()] = item.item.name;
+      return map;
+    }, {});
+
+    // Function to process items in actions or transactions
+    const processItems = (items) => {
+      return items.map(item => ({
+        ...item,
+        item: {
+          _id: item.item._id || item.item,
+          name: itemNameMap[item.item._id || item.item] || 'Unknown Item'
+        }
+      }));
+    };
+
+    // Process items in actions
+    order.actions = order.actions.map(action => ({
+      ...action,
+      details: action.details ? {
+        ...action.details,
+        items: processItems(action.details.items)
+      } : undefined
+    }));
+
+    // Merge transaction data into actions
+    order.actions = order.actions.map(action => {
+      const matchingTransaction = order.transactionHistory.find(
+        t => t.date.getTime() === action.date.getTime() &&
+        t.performedByType === action.userType
+      );
+      if (matchingTransaction) {
+        return {
+          ...action,
+          transactionType: matchingTransaction.transactionType,
+          transactionAmount: matchingTransaction.amount,
+          transactionItems: processItems(matchingTransaction.items),
+          transactionNotes: matchingTransaction.notes,
+          performedBy: matchingTransaction.performedBy // This now includes name and phone
+        };
+      }
+      return action;
+    });
+
+    const totalAmounts = order.transactionHistory.reduce((acc, transaction) => {
+      if (['FullDelivery', 'PartialDelivery'].includes(transaction.transactionType)) {
+        acc.totalDelivered += transaction.amount;
+      } else if (['FullCancellation', 'PartialCancellation'].includes(transaction.transactionType)) {
+        acc.totalCancelled += transaction.amount;
+      } else if (transaction.transactionType === 'Refund') {
+        acc.totalRefunded += transaction.amount;
+      }
+      return acc;
+    }, { totalDelivered: 0, totalCancelled: 0, totalRefunded: 0 });
+
+    order.totalDelivered = totalAmounts.totalDelivered;
+    order.totalCancelled = totalAmounts.totalCancelled;
+    order.totalRefunded = totalAmounts.totalRefunded;
 
     res.status(200).json({ order });
   } catch (error) {
@@ -397,24 +571,56 @@ router.get('/order/:id', checkPermission('Search_order'), async (req, res) => {
 router.get('/order-workflow/:id', checkPermission('view_order_workflow'), async (req, res) => {
   try {
     const { id } = req.params;
-
     const order = await Order.findById(id)
       .populate({
         path: 'actions.user',
         select: 'name phone'
-      });
+      })
+      .lean();
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    const workflow = order.actions.map(action => ({
-      action: action.action,
-      date: action.date,
-      employee: {
-        name: action.user.name,
-        phone: action.user.phone
+    const transactionOrder = await TransactionOrder.findOne({ order: order._id })
+      .populate({
+        path: 'transactions.items.item',
+        select: 'name price mainImageUrl productId'
+      })
+      .lean();
+
+    const workflow = await Promise.all(order.actions.map(async (action) => {
+      let actionDetails = {
+        action: action.action,
+        date: action.date,
+        employee: {
+          name: action.user ? action.user.name : `${action.userType} User`,
+          phone: action.user ? action.user.phone : 'N/A'
+        }
+      };
+
+      // Find corresponding transaction in TransactionOrder
+      if (transactionOrder) {
+        const matchingTransaction = transactionOrder.transactions.find(t => 
+          t.date.getTime() === action.date.getTime() && 
+          t.performedByType === action.userType
+        );
+
+        if (matchingTransaction) {
+          actionDetails.transactionType = matchingTransaction.transactionType;
+          actionDetails.amount = matchingTransaction.amount;
+          actionDetails.notes = matchingTransaction.notes;
+          actionDetails.items = matchingTransaction.items.map(item => ({
+            name: item.item.name,
+            productId: item.item.productId,
+            quantity: item.quantity,
+            price: item.price,
+            mainImageUrl: item.item.mainImageUrl
+          }));
+        }
       }
+
+      return actionDetails;
     }));
 
     res.status(200).json({ workflow });
@@ -436,40 +642,50 @@ router.post('/activate-order-casher/:id', checkPermission('activate_order_casher
     const order = await Order.findById(id).populate('items.item').session(session);
     if (!order) {
       await session.abortTransaction();
-      session.endSession();
       return res.status(404).json({ message: 'Order not found' });
     }
-
     if (order.status !== 'Activated' || order.workflowStatus !== 'Casher') {
       await session.abortTransaction();
-      session.endSession();
       return res.status(400).json({ message: 'Only activated orders in casher stage can be processed' });
     }
 
-    // Calculate total order price
-    const totalOrderPrice = order.items.reduce((total, orderItem) => {
-      return total + (orderItem.item.price * orderItem.quantity);
-    }, 0);
+    // Calculate total order price and prepare items details
+    let totalOrderPrice = 0;
+    const itemsDetails = order.items.map(orderItem => {
+      const itemAmount = orderItem.item.price * orderItem.quantity;
+      totalOrderPrice += itemAmount;
+      return {
+        item: orderItem.item._id,
+        quantity: orderItem.quantity,
+        price: orderItem.item.price,
+        amount: itemAmount
+      };
+    });
 
     // Create transaction
     const transaction = new TransactionOrder({
       order: order._id,
       type: 'Post',
-      items: order.items.map(item => ({
-        item: item.item._id,
-        quantity: item.quantity,
-        price: item.item.price
-      })),
+      items: itemsDetails,
       amount: totalOrderPrice,
       performedBy: req.adminId,
-      performedByType: 'Casher'
+      performedByType: 'Admin',
+      usertype: 'Casher'
     });
     await transaction.save({ session });
 
     // Update order workflow status
     order.workflowStatus = 'MaterialManagement';
     order.status = 'Posted';
-    order.actions.push({ action: 'Order Posted', user: req.adminId });
+    order.actions.push({
+      action: 'Order Posted',
+      user: req.adminId,
+      userType: 'Admin',
+      details: {
+        items: itemsDetails,
+        totalAmount: totalOrderPrice
+      }
+    });
     await order.save({ session });
 
     // Update cashbox
@@ -481,14 +697,14 @@ router.post('/activate-order-casher/:id', checkPermission('activate_order_casher
     await cashbox.save({ session });
 
     await session.commitTransaction();
-    session.endSession();
 
     res.status(200).json({ message: 'Order processed and cash updated successfully', order, transaction });
   } catch (error) {
     await session.abortTransaction();
-    session.endSession();
-    console.log('Order processing error:', error);
+    console.error('Order processing error:', error);
     res.status(500).json({ message: 'Internal server error', error: error.message });
+  } finally {
+    session.endSession();
   }
 });
 
@@ -499,36 +715,50 @@ router.post('/reject-order-casher/:id', checkPermission('reject_order_casher'), 
 
   try {
     const { id } = req.params;
-
-    const order = await Order.findById(id).session(session);
+    const order = await Order.findById(id).populate('items.item').session(session);
     if (!order) {
       await session.abortTransaction();
-      session.endSession();
       return res.status(404).json({ message: 'Order not found' });
     }
-
     if (order.workflowStatus !== 'Casher') {
       await session.abortTransaction();
-      session.endSession();
       return res.status(400).json({ message: 'Only orders in casher stage can be rejected' });
     }
+
+    // Prepare items details
+    const itemsDetails = order.items.map(orderItem => ({
+      item: orderItem.item._id,
+      quantity: orderItem.quantity,
+      price: orderItem.item.price,
+      amount: orderItem.item.price * orderItem.quantity
+    }));
+
+    // Calculate total order amount
+    const totalOrderAmount = itemsDetails.reduce((total, item) => total + item.amount, 0);
 
     // Update order status
     order.status = 'Pending';
     order.workflowStatus = 'Sales';
-    order.actions.push({ action: 'Order Rejected', user: req.adminId });
+    order.actions.push({
+      action: 'Order Rejected',
+      user: req.adminId,
+      userType: 'Admin',
+      details: {
+        items: itemsDetails,
+        totalAmount: totalOrderAmount
+      }
+    });
     await order.save({ session });
 
     await session.commitTransaction();
-    session.endSession();
 
     res.status(200).json({ message: 'Order rejected and returned to sales for editing', order });
   } catch (error) {
     await session.abortTransaction();
-    session.endSession();
-
     console.error('Order rejection error:', error.message);
     res.status(500).json({ message: 'Internal server error', error: error.message });
+  } finally {
+    session.endSession();
   }
 });
 
@@ -592,13 +822,11 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
     const order = await Order.findById(id).populate('items.item').session(session);
     if (!order) {
       await session.abortTransaction();
-      session.endSession();
       return res.status(404).json({ message: 'Order not found' });
     }
 
     if (order.workflowStatus !== 'MaterialManagement') {
       await session.abortTransaction();
-      session.endSession();
       return res.status(400).json({ message: 'Order is not in Material Management stage' });
     }
 
@@ -610,21 +838,18 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
       const orderItem = order.items.find(oi => oi.item._id.toString() === itemId);
       if (!orderItem) {
         await session.abortTransaction();
-        session.endSession();
         return res.status(400).json({ message: `Invalid item: ${itemId}` });
       }
 
       const remainingQuantity = orderItem.quantity - (orderItem.deliveredQuantity || 0) - (orderItem.cancelledQuantity || 0);
       if (Number(quantity) > remainingQuantity) {
         await session.abortTransaction();
-        session.endSession();
         return res.status(400).json({ message: `Delivery quantity exceeds remaining quantity for item: ${itemId}` });
       }
 
       const { storageId, partitionId } = storageSelections[itemId] || {};
       if (!storageId) {
         await session.abortTransaction();
-        session.endSession();
         return res.status(400).json({ message: `Storage not selected for item: ${itemId}` });
       }
 
@@ -635,13 +860,11 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
 
       if (!storageQuantity) {
         await session.abortTransaction();
-        session.endSession();
         return res.status(400).json({ message: `Storage/Partition not found for item: ${itemId}` });
       }
 
       if (Number(storageQuantity.quantity) < Number(quantity)) {
         await session.abortTransaction();
-        session.endSession();
         return res.status(400).json({ message: `Not enough quantity in the selected storage/partition for item: ${orderItem.item.name}` });
       }
 
@@ -649,10 +872,8 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
       storageQuantity.quantity = Math.max(0, Number(storageQuantity.quantity) - Number(quantity));
       orderItem.item.reservedQuantity = Math.max(0, Number(orderItem.item.reservedQuantity) - Number(quantity));
       
-      // Ensure we're not setting any NaN values
       if (isNaN(storageQuantity.quantity) || isNaN(orderItem.item.reservedQuantity)) {
         await session.abortTransaction();
-        session.endSession();
         return res.status(400).json({ message: `Invalid quantity calculation for item: ${itemId}` });
       }
 
@@ -664,7 +885,10 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
       deliveredItems.push({
         item: orderItem.item._id,
         quantity: Number(quantity),
-        price: orderItem.item.price
+        price: orderItem.item.price,
+        storage: storageId,
+        partition: partitionId,
+        amount: Number(orderItem.item.price) * Number(quantity)
       });
       totalAmount += Number(orderItem.item.price) * Number(quantity);
 
@@ -673,16 +897,24 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
       }
     }
 
-    // Create transaction
-    const transaction = new TransactionOrder({
-      order: order._id,
-      type: isFullDelivery ? 'FullDelivery' : 'PartialDelivery',
+    // Find or create TransactionOrder
+    let transactionOrder = await TransactionOrder.findOne({ order: order._id }).session(session);
+    if (!transactionOrder) {
+      transactionOrder = new TransactionOrder({ order: order._id, transactions: [] });
+    }
+
+    // Add new transaction
+    transactionOrder.transactions.push({
+      transactionType: isFullDelivery ? 'FullDelivery' : 'PartialDelivery',
       items: deliveredItems,
       amount: totalAmount,
       performedBy: req.adminId,
-      performedByType: 'Mm'
+      performedByType: 'Admin',
+      usertype: 'Mm',
+      notes: `Order ${isFullDelivery ? 'fully' : 'partially'} delivered`
     });
-    await transaction.save({ session });
+
+    await transactionOrder.save({ session });
 
     // Update order status
     if (isFullDelivery) {
@@ -691,22 +923,30 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
     } else {
       order.status = 'PartiallyDelivered';
     }
-    order.actions.push({ action: isFullDelivery ? 'Order Fully Delivered' : 'Order Partially Delivered', user: req.adminId });
+    order.actions.push({
+      action: isFullDelivery ? 'Order Fully Delivered' : 'Order Partially Delivered',
+      user: req.adminId,
+      userType: 'Admin',
+      details: {
+        items: deliveredItems,
+        totalAmount: totalAmount
+      }
+    });
     await order.save({ session });
 
     await session.commitTransaction();
-    session.endSession();
 
     res.status(200).json({ 
       message: `Order ${isFullDelivery ? 'fully' : 'partially'} delivered and quantities updated successfully`, 
       order, 
-      transaction 
+      transactionOrder 
     });
   } catch (error) {
     await session.abortTransaction();
-    session.endSession();
     console.error('Order processing error:', error.message);
     res.status(500).json({ message: 'Internal server error', error: error.message });
+  } finally {
+    session.endSession();
   }
 });
 
@@ -719,18 +959,16 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
     const { id } = req.params;
     const { items, type } = req.body;
 
-    console.log('Cancellation request:', { id, items, type }); // Log the incoming request
+    console.log('Cancellation request:', { id, items, type });
 
     const order = await Order.findById(id).populate('items.item').session(session);
     if (!order) {
       await session.abortTransaction();
-      session.endSession();
       return res.status(404).json({ message: 'Order not found' });
     }
 
     if (order.workflowStatus !== 'MaterialManagement') {
       await session.abortTransaction();
-      session.endSession();
       return res.status(400).json({ message: 'Order is not in Material Management stage' });
     }
 
@@ -739,12 +977,11 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
     let isFullCancellation = type === 'full';
 
     for (const { itemId, quantity, storageId, partitionId } of items) {
-      console.log('Processing item:', { itemId, quantity, storageId, partitionId }); // Log each item being processed
+      console.log('Processing item:', { itemId, quantity, storageId, partitionId });
 
       const orderItem = order.items.find(oi => oi.item._id.toString() === itemId);
       if (!orderItem) {
         await session.abortTransaction();
-        session.endSession();
         return res.status(400).json({ message: `Invalid selection for item: ${itemId}` });
       }
 
@@ -758,17 +995,15 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
         cancelledQuantity: orderItem.cancelledQuantity, 
         remainingQuantity, 
         requestedCancelQuantity: cancelQuantity 
-      }); // Log quantity details
+      });
 
       if (isNaN(cancelQuantity) || cancelQuantity <= 0) {
         await session.abortTransaction();
-        session.endSession();
         return res.status(400).json({ message: `Invalid cancellation quantity for item: ${itemId}` });
       }
 
       if (cancelQuantity > remainingQuantity) {
         await session.abortTransaction();
-        session.endSession();
         return res.status(400).json({ message: `Cancellation quantity exceeds remaining quantity for item: ${itemId}` });
       }
 
@@ -778,14 +1013,12 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
 
       if (!storageQuantity) {
         await session.abortTransaction();
-        session.endSession();
         return res.status(400).json({ message: `Storage/Partition not found for item: ${itemId}` });
       }
 
       const itemPrice = Number(orderItem.item.price);
       if (isNaN(itemPrice)) {
         await session.abortTransaction();
-        session.endSession();
         return res.status(400).json({ message: `Invalid price for item: ${itemId}` });
       }
 
@@ -793,7 +1026,10 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
       cancelledItems.push({
         item: orderItem.item._id,
         quantity: cancelQuantity,
-        price: itemPrice
+        price: itemPrice,
+        storage: storageId,
+        partition: partitionId,
+        amount: itemPrice * cancelQuantity
       });
 
       // Update item quantities
@@ -806,11 +1042,10 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
         newReservedQuantity, 
         newTotalQuantity, 
         newStorageQuantity 
-      }); // Log updated quantities
+      });
 
       if (isNaN(newReservedQuantity) || isNaN(newTotalQuantity) || isNaN(newStorageQuantity)) {
         await session.abortTransaction();
-        session.endSession();
         return res.status(400).json({ message: `Invalid quantity calculation for item: ${itemId}` });
       }
 
@@ -843,16 +1078,24 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
     wallet.balance = Number(wallet.balance) + totalAmount;
     await wallet.save({ session });
 
-    // Create transaction
-    const transaction = new TransactionOrder({
-      order: order._id,
-      type: isFullCancellation ? 'FullCancellation' : 'PartialCancellation',
+    // Find or create TransactionOrder
+    let transactionOrder = await TransactionOrder.findOne({ order: order._id }).session(session);
+    if (!transactionOrder) {
+      transactionOrder = new TransactionOrder({ order: order._id, transactions: [] });
+    }
+
+    // Add new transaction
+    transactionOrder.transactions.push({
+      transactionType: isFullCancellation ? 'FullCancellation' : 'PartialCancellation',
       items: cancelledItems,
       amount: totalAmount,
       performedBy: req.adminId,
-      performedByType: 'Mm'
+      performedByType: 'Admin',
+      usertype: 'Mm',
+      notes: `Order ${isFullCancellation ? 'fully' : 'partially'} cancelled and refunded`
     });
-    await transaction.save({ session });
+
+    await transactionOrder.save({ session });
 
     // Update order status
     if (isFullCancellation) {
@@ -861,29 +1104,37 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
     } else {
       order.status = 'PartiallyCancelled';
     }
-    order.actions.push({ action: isFullCancellation ? 'Order Fully Cancelled' : 'Order Partially Cancelled', user: req.adminId });
+    order.actions.push({
+      action: isFullCancellation ? 'Order Fully Cancelled' : 'Order Partially Cancelled',
+      user: req.adminId,
+      userType: 'Admin',
+      details: {
+        items: cancelledItems,
+        totalAmount: totalAmount
+      }
+    });
     await order.save({ session });
 
     await session.commitTransaction();
-    session.endSession();
 
     console.log('Cancellation successful:', { 
       orderId: order._id, 
       isFullCancellation, 
       totalAmount, 
       cancelledItems 
-    }); // Log successful cancellation
+    });
 
     res.status(200).json({ 
       message: `Order ${isFullCancellation ? 'fully' : 'partially'} cancelled, refund processed, and items moved to trash`, 
       order, 
-      transaction 
+      transactionOrder 
     });
   } catch (error) {
     await session.abortTransaction();
-    session.endSession();
     console.error('Order cancellation error:', error.message);
     res.status(500).json({ message: 'Internal server error', error: error.message });
+  } finally {
+    session.endSession();
   }
 });
 
@@ -919,25 +1170,32 @@ router.post('/create-order-mobile', authMiddleware, async (req, res) => {
   try {
     const { items } = req.body;
     let totalOrderPrice = 0;
+    const orderItems = [];
 
-    // Check item quantities
+    // Check item quantities and prepare order items
     for (const orderItem of items) {
       const item = await Item.findById(orderItem.item).session(session);
       if (!item) {
         await session.abortTransaction();
-        session.endSession();
         return res.status(404).json({ message: `Item not found: ${orderItem.item}` });
       }
       const availableQuantity = Number(item.totalQuantity) - Number(item.reservedQuantity);
       if (availableQuantity < Number(orderItem.quantity)) {
         await session.abortTransaction();
-        session.endSession();
         return res.status(420).json({ message: `Not enough quantity for item: ${item.name}` });
       }
       item.reservedQuantity = Number(item.reservedQuantity) + Number(orderItem.quantity);
       await item.save({ session });
 
-      totalOrderPrice += Number(item.price) * Number(orderItem.quantity);
+      const itemTotal = Number(item.price) * Number(orderItem.quantity);
+      totalOrderPrice += itemTotal;
+
+      orderItems.push({
+        item: item._id,
+        quantity: Number(orderItem.quantity),
+        price: Number(item.price),
+        amount: itemTotal
+      });
     }
 
     // Get next order ID
@@ -947,10 +1205,18 @@ router.post('/create-order-mobile', authMiddleware, async (req, res) => {
     const order = new Order({
       orderId,
       customer: req.customer._id,
-      items,
+      items: orderItems,
       workflowStatus: 'MaterialManagement',
       status: 'Posted',
-      actions: [{ action: 'Order Created', user: req.customer._id }]
+      actions: [{
+        action: 'Order Created',
+        user: req.customer._id,
+        userType: 'Customer',
+        details: {
+          items: orderItems,
+          totalAmount: totalOrderPrice
+        }
+      }]
     });
     await order.save({ session });
 
@@ -958,11 +1224,7 @@ router.post('/create-order-mobile', authMiddleware, async (req, res) => {
     const transaction = new TransactionOrder({
       order: order._id,
       type: 'Post',
-      items: items.map(item => ({
-        item: item.item,
-        quantity: item.quantity,
-        price: item.price
-      })),
+      items: orderItems,
       amount: totalOrderPrice,
       performedBy: req.customer._id,
       performedByType: 'Customer'
@@ -970,16 +1232,27 @@ router.post('/create-order-mobile', authMiddleware, async (req, res) => {
     await transaction.save({ session });
 
     await session.commitTransaction();
-    session.endSession();
 
-    res.status(201).json({ message: 'Order created successfully', order, transaction });
+    res.status(201).json({ 
+      message: 'Order created successfully', 
+      order: {
+        ...order.toObject(),
+        actions: order.actions.map(action => ({
+          ...action.toObject(),
+          user: req.customer._id
+        }))
+      }, 
+      transaction 
+    });
   } catch (error) {
     await session.abortTransaction();
-    session.endSession();
     console.error('Order creation error:', error.message);
     res.status(500).json({ message: 'Internal server error', error: error.message });
+  } finally {
+    session.endSession();
   }
 });
+
 
 // return order user details
 router.get('/orders/user/get', authMiddleware, async (req, res) => {
