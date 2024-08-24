@@ -1,13 +1,18 @@
-// cashbox.js
+// models/CashBox.js
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-const cashboxSchema = new Schema({
-  employee: { type: Schema.Types.ObjectId, ref: 'Admin', required: true, index: true },
-  totalAmount: { type: Number, default: 0 },
-  handoverLogs: [{ type: Schema.Types.ObjectId, ref: 'HandoverLog' }]
-});
+const cashBoxSchema = new Schema({
+  box: { type: Schema.Types.ObjectId, ref: 'Box', required: true },
+  employee: { type: Schema.Types.ObjectId, ref: 'Admin', required: true },
+  isOpen: { type: Boolean, default: false },
+  openedAt: { type: Date },
+  closedAt: { type: Date },
+  initialAmount: { type: Number, default: 0 },
+  currentAmount: { type: Number, default: 0 },
+  transactions: [{ type: Schema.Types.ObjectId, ref: 'Transaction' }]
+}, { timestamps: true });
 
-const Cashbox = mongoose.model('Cashbox', cashboxSchema);
+const CashBox = mongoose.model('CashBox', cashBoxSchema);
 
-module.exports = Cashbox;
+module.exports = CashBox;

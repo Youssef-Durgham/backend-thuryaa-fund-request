@@ -10,6 +10,8 @@ const Trash = require('../model/Trash');
 const Counter = require('../model/Counter');
 const mongoose = require('mongoose');
 const TransactionOrder = require('../model/TransactionsOrder');
+const TransBox = require('../model/TransBox');
+const Box = require('../model/Box');
 
 const router = express.Router();
 
@@ -689,12 +691,34 @@ router.post('/activate-order-casher/:id', checkPermission('activate_order_casher
     await order.save({ session });
 
     // Update cashbox
-    let cashbox = await Cashbox.findOne({ employee: req.adminId }).session(session);
-    if (!cashbox) {
-      cashbox = new Cashbox({ employee: req.adminId });
-    }
-    cashbox.totalAmount += totalOrderPrice;
-    await cashbox.save({ session });
+ // Find or create the admin's box
+ let adminBox = await Box.findOne({ owner: req.adminId, type: 'admin' }).session(session);
+ if (!adminBox) {
+   adminBox = new Box({
+     name: `${req.adminName}'s Box`,
+     description: 'Personal admin box',
+     type: 'admin',
+     createdBy: req.adminId,
+     owner: req.adminId,
+     balance: 0
+   });
+   await adminBox.save({ session });
+ }
+
+  // Update admin's box balance
+  adminBox.balance += totalOrderPrice;
+  await adminBox.save({ session });
+
+  // Create a TransBox record for this transaction
+  const transBox = new TransBox({
+    fromBox: null, // No source box for this transaction
+    toBox: adminBox._id,
+    amount: totalOrderPrice,
+    performedBy: req.adminId,
+    description: `Order ${order._id} posted`,
+    type: 'deposit'
+  });
+  await transBox.save({ session });
 
     await session.commitTransaction();
 

@@ -5,6 +5,8 @@ const { Admin } = require('../model/Users');
 const Order = require('../model/Order');
 const TransactionOrder = require('../model/TransactionsOrder');
 const jwt = require('jsonwebtoken');
+const TransBox = require('../model/TransBox');
+const Box = require('../model/Box');
 
 const checkPermission = (permission) => {
     return async (req, res, next) => {
@@ -930,6 +932,245 @@ router.get('/api/reports/product-performance', checkPermission('Sales_Report'), 
     res.json(productPerformance);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+// Helper function for pagination
+const paginateResults = (page, limit) => {
+  const skip = (page - 1) * limit;
+  return [
+    { $skip: skip },
+    { $limit: parseInt(limit) }
+  ];
+};
+
+// 1. Transaction Summary Report
+router.get('/reports/transaction-summary-box', checkPermission('Box_Reports'), async (req, res) => {
+  try {
+    const { startDate, endDate, boxId, type, page = 1, limit = 10 } = req.query;
+
+    let matchStage = {};
+    if (startDate && endDate) {
+      matchStage.createdAt = { $gte: new Date(startDate), $lte: new Date(endDate) };
+    }
+    if (boxId) {
+      matchStage.$or = [{ fromBox: mongoose.Types.ObjectId(boxId) }, { toBox: mongoose.Types.ObjectId(boxId) }];
+    }
+    if (type) {
+      matchStage.type = type;
+    }
+
+    const aggregationPipeline = [
+      { $match: matchStage },
+      { $sort: { createdAt: -1 } },
+      {
+        $lookup: {
+          from: 'boxes',
+          localField: 'fromBox',
+          foreignField: '_id',
+          as: 'fromBoxDetails'
+        }
+      },
+      {
+        $lookup: {
+          from: 'boxes',
+          localField: 'toBox',
+          foreignField: '_id',
+          as: 'toBoxDetails'
+        }
+      },
+      {
+        $lookup: {
+          from: 'admins',
+          localField: 'performedBy',
+          foreignField: '_id',
+          as: 'performedByDetails'
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          amount: 1,
+          type: 1,
+          description: 1,
+          createdAt: 1,
+          fromBox: { $arrayElemAt: ['$fromBoxDetails.name', 0] },
+          toBox: { $arrayElemAt: ['$toBoxDetails.name', 0] },
+          performedBy: { $arrayElemAt: ['$performedByDetails.name', 0] }
+        }
+      }
+    ];
+
+    const totalCount = await TransBox.aggregate([...aggregationPipeline, { $count: 'total' }]);
+    
+    aggregationPipeline.push(...paginateResults(page, limit));
+
+    const transactions = await TransBox.aggregate(aggregationPipeline);
+
+    res.json({
+      total: totalCount.length > 0 ? totalCount[0].total : 0,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      transactions
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error generating report', error: error.message });
+  }
+});
+
+// 2. Box Balance Report
+router.get('/reports/box-balances', checkPermission('Box_Reports'), async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+
+    const aggregationPipeline = [
+      {
+        $lookup: {
+          from: 'admins',
+          localField: 'createdBy',
+          foreignField: '_id',
+          as: 'createdByDetails'
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          type: 1,
+          balance: 1,
+          isActive: 1,
+          createdAt: 1,
+          createdBy: { $arrayElemAt: ['$createdByDetails.name', 0] }
+        }
+      },
+      { $sort: { balance: -1 } }
+    ];
+
+    const totalCount = await Box.aggregate([...aggregationPipeline, { $count: 'total' }]);
+    
+    aggregationPipeline.push(...paginateResults(page, limit));
+
+    const boxes = await Box.aggregate(aggregationPipeline);
+
+    res.json({
+      total: totalCount.length > 0 ? totalCount[0].total : 0,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      boxes
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error generating report', error: error.message });
+  }
+});
+
+// 3. User Activity Report
+router.get('/reports/user-activity-box', checkPermission('Box_Reports'), async (req, res) => {
+  try {
+    const { startDate, endDate, userId, page = 1, limit = 10 } = req.query;
+
+    let matchStage = {};
+    if (startDate && endDate) {
+      matchStage.createdAt = { $gte: new Date(startDate), $lte: new Date(endDate) };
+    }
+    if (userId) {
+      matchStage.performedBy = mongoose.Types.ObjectId(userId);
+    }
+
+    const aggregationPipeline = [
+      { $match: matchStage },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: '$performedBy',
+          totalTransactions: { $sum: 1 },
+          totalAmount: { $sum: '$amount' },
+          lastActivity: { $max: '$createdAt' },
+          transactions: { $push: '$$ROOT' }
+        }
+      },
+      {
+        $lookup: {
+          from: 'admins',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'userDetails'
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          totalTransactions: 1,
+          totalAmount: 1,
+          lastActivity: 1,
+          userName: { $arrayElemAt: ['$userDetails.name', 0] },
+          userPhone: { $arrayElemAt: ['$userDetails.phone', 0] },
+          recentTransactions: { $slice: ['$transactions', 5] }
+        }
+      }
+    ];
+
+    const totalCount = await TransBox.aggregate([...aggregationPipeline, { $count: 'total' }]);
+    
+    aggregationPipeline.push(...paginateResults(page, limit));
+
+    const userActivity = await TransBox.aggregate(aggregationPipeline);
+
+    res.json({
+      total: totalCount.length > 0 ? totalCount[0].total : 0,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      userActivity
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error generating report', error: error.message });
+  }
+});
+
+// 4. Daily Transaction Summary
+router.get('/reports/daily-summary-box', checkPermission('Box_Reports'), async (req, res) => {
+  try {
+    const { startDate, endDate, page = 1, limit = 10 } = req.query;
+
+    let matchStage = {};
+    if (startDate && endDate) {
+      matchStage.createdAt = { $gte: new Date(startDate), $lte: new Date(endDate) };
+    }
+
+    const aggregationPipeline = [
+      { $match: matchStage },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          totalTransactions: { $sum: 1 },
+          totalAmount: { $sum: '$amount' },
+          deposits: {
+            $sum: { $cond: [{ $eq: ['$type', 'deposit'] }, '$amount', 0] }
+          },
+          withdrawals: {
+            $sum: { $cond: [{ $eq: ['$type', 'withdrawal'] }, '$amount', 0] }
+          },
+          transfers: {
+            $sum: { $cond: [{ $eq: ['$type', 'transfer'] }, '$amount', 0] }
+          }
+        }
+      },
+      { $sort: { _id: -1 } }
+    ];
+
+    const totalCount = await TransBox.aggregate([...aggregationPipeline, { $count: 'total' }]);
+    
+    aggregationPipeline.push(...paginateResults(page, limit));
+
+    const dailySummary = await TransBox.aggregate(aggregationPipeline);
+
+    res.json({
+      total: totalCount.length > 0 ? totalCount[0].total : 0,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      dailySummary
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error generating report', error: error.message });
   }
 });
 
