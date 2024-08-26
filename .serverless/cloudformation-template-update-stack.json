@@ -173,7 +173,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/e-commerce-future/dev/1724515696930-2024-08-24T16:08:16.930Z/e-commerce-future.zip"
+          "S3Key": "serverless/e-commerce-future/dev/1724666421423-2024-08-26T10:00:21.423Z/e-commerce-future.zip"
         },
         "Handler": "index.handler",
         "Runtime": "nodejs18.x",
@@ -182,7 +182,7 @@
         "Timeout": 900,
         "Environment": {
           "Variables": {
-            "MONGO_URL": "mongodb+srv://yusif:yusif@cluster0.twzfinb.mongodb.net/?retryWrites=true&w=majority",
+            "MONGO_URL": "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority",
             "TOKEN_SECRET": "laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs",
             "ADMIN_SECRET_KEY": "FoodoYusif123@",
             "JWT_SECRET": "1234567890",
@@ -288,7 +288,7 @@
         "MainLambdaPermissionApiGateway"
       ]
     },
-    "ApiGatewayDeployment1724515692347": {
+    "ApiGatewayDeployment1724666417999": {
       "Type": "AWS::ApiGateway::Deployment",
       "Properties": {
         "RestApiId": {
