@@ -7,13 +7,13 @@ const transactionOrderSchema = new Schema({
     transactionType: {
       type: String,
       required: true,
-      enum: ['Post', 'PartialDelivery', 'FullDelivery', 'PartialCancellation', 'FullCancellation', 'Refund']
+      enum: ['Post', 'PartialDelivery', 'FullDelivery', 'PartialCancellation', 'FullCancellation', 'Refund', 'RefundRequested', 'RefundRejected']
     },
     items: [{
       item: { type: Schema.Types.ObjectId, ref: 'Item', required: true },
       quantity: { type: Number, required: true },
       price: { type: Number, required: true },
-      storage: { type: Schema.Types.ObjectId, ref: 'Storage', required: true },
+      storage: { type: Schema.Types.ObjectId, ref: 'Storage' },
       partition: { type: Schema.Types.ObjectId, ref: 'Partition' }
     }],
     amount: { type: Number, required: true },

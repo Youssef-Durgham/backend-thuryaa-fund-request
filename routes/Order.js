@@ -1162,6 +1162,261 @@ router.post('/cancel-order-mm/:id', checkPermission('cancel_order_mm'), async (r
   }
 });
 
+// request refund for mm user for an items or fully refund
+router.post('/request-refund/:orderId', checkPermission('request_refund'), async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { orderId } = req.params;
+    const { items, reason } = req.body;
+
+    const order = await Order.findById(orderId).populate('items.item').session(session);
+    if (!order) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.workflowStatus !== 'Completed' || order.status !== 'Completed') {
+      await session.abortTransaction();
+      return res.status(400).json({ message: 'Only completed orders can be refunded' });
+    }
+
+    let totalRefundAmount = 0;
+    let totalOrderAmount = 0;
+    const refundItems = [];
+
+    for (const orderItem of order.items) {
+      totalOrderAmount += orderItem.quantity * orderItem.item.price;
+    }
+
+    for (const { itemId, quantity } of items) {
+      const orderItem = order.items.find(oi => oi.item._id.toString() === itemId);
+      if (!orderItem) {
+        await session.abortTransaction();
+        return res.status(400).json({ message: `Invalid item: ${itemId}` });
+      }
+
+      if (Number(quantity) > orderItem.deliveredQuantity) {
+        await session.abortTransaction();
+        return res.status(400).json({ message: `Refund quantity exceeds delivered quantity for item: ${itemId}` });
+      }
+
+      const refundAmount = Number(orderItem.item.price) * Number(quantity);
+      totalRefundAmount += refundAmount;
+
+      refundItems.push({
+        item: orderItem.item._id,
+        quantity: Number(quantity),
+        price: orderItem.item.price,
+        amount: refundAmount
+      });
+    }
+
+    // Determine if it's a full or partial refund
+    const isFullRefund = Math.abs(totalRefundAmount - totalOrderAmount) < 0.01; // Using a small epsilon for float comparison
+
+    // Update order status and workflowStatus
+    order.status = isFullRefund ? 'Refund' : 'PartialRefund';
+    order.workflowStatus = 'Casher';
+
+    // Find or create TransactionOrder
+    let transactionOrder = await TransactionOrder.findOne({ order: order._id }).session(session);
+    if (!transactionOrder) {
+      transactionOrder = new TransactionOrder({ order: order._id, transactions: [] });
+    }
+
+    // Add new transaction for refund request
+    transactionOrder.transactions.push({
+      transactionType: 'RefundRequested',
+      items: refundItems,
+      amount: totalRefundAmount,
+      performedBy: req.adminId,
+      performedByType: 'Admin',
+      usertype: 'Mm',
+      notes: `${isFullRefund ? 'Full' : 'Partial'} refund requested: ${reason}`
+    });
+
+    await transactionOrder.save({ session });
+
+    order.actions.push({
+      action: `${isFullRefund ? 'Full' : 'Partial'} Refund Requested`,
+      user: req.adminId,
+      userType: 'Admin',
+      details: {
+        items: refundItems,
+        totalAmount: totalRefundAmount,
+        reason: reason
+      }
+    });
+
+    await order.save({ session });
+
+    await session.commitTransaction();
+
+    res.status(200).json({ 
+      message: `${isFullRefund ? 'Full' : 'Partial'} refund request submitted successfully`, 
+      order,
+      transactionOrder 
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Refund request error:', error.message);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  } finally {
+    session.endSession();
+  }
+});
+
+// approve refund by casher
+router.post('/approve-refund/:orderId', checkPermission('approve_refund'), async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { orderId } = req.params;
+    const { approve } = req.body;
+
+    const order = await Order.findById(orderId).populate('items.item').session(session);
+    if (!order) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.workflowStatus !== 'Casher' || (order.status !== 'Refund' && order.status !== 'PartialRefund')) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: 'Invalid order status for refund approval' });
+    }
+
+    const transactionOrder = await TransactionOrder.findOne({ order: order._id }).session(session);
+    if (!transactionOrder) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'Transaction order not found' });
+    }
+
+    // Find the most recent RefundRequested transaction
+    const refundTransaction = transactionOrder.transactions
+      .filter(t => t.transactionType === 'RefundRequested')
+      .sort((a, b) => b.date - a.date)[0];
+
+    if (!refundTransaction) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: 'No pending refund request found' });
+    }
+
+    const isFullRefund = order.status === 'Refund';
+
+    if (approve) {
+      // Update item quantities
+      for (const refundItem of refundTransaction.items) {
+        const item = await Item.findById(refundItem.item).session(session);
+        if (!item) {
+          await session.abortTransaction();
+          return res.status(404).json({ message: `Item not found: ${refundItem.item}` });
+        }
+
+        item.totalQuantity += refundItem.quantity;
+        item.reservedQuantity = Math.max(0, item.reservedQuantity - refundItem.quantity);
+        await item.save({ session });
+
+        // Update order item quantities
+        const orderItem = order.items.find(oi => oi.item._id.toString() === refundItem.item.toString());
+        if (orderItem) {
+          orderItem.deliveredQuantity -= refundItem.quantity;
+        }
+      }
+
+      // Add new transaction for approved refund
+      transactionOrder.transactions.push({
+        transactionType: 'Refund',
+        items: refundTransaction.items,
+        amount: refundTransaction.amount,
+        performedBy: req.adminId,
+        performedByType: 'Admin',
+        usertype: 'Casher',
+        notes: `${isFullRefund ? 'Full' : 'Partial'} refund approved for order ${order._id}`
+      });
+
+      // Update cashbox
+      const adminBox = await Box.findOne({ owner: req.adminId, type: 'admin' }).session(session);
+      if (adminBox) {
+        adminBox.balance -= refundTransaction.amount;
+        await adminBox.save({ session });
+
+        // Create a TransBox record for this transaction
+        const transBox = new TransBox({
+          fromBox: adminBox._id,
+          toBox: null,
+          amount: refundTransaction.amount,
+          performedBy: req.adminId,
+          description: `${isFullRefund ? 'Full' : 'Partial'} refund for order ${order._id}`,
+          type: 'withdrawal'
+        });
+        await transBox.save({ session });
+      }
+
+      order.actions.push({
+        action: `${isFullRefund ? 'Full' : 'Partial'} Refund Approved`,
+        user: req.adminId,
+        userType: 'Admin',
+        details: {
+          items: refundTransaction.items,
+          totalAmount: refundTransaction.amount
+        }
+      });
+
+      // Update order status and workflowStatus
+      order.status = isFullRefund ? 'Refunded' : 'PartiallyRefunded';
+      order.workflowStatus = 'Completed';
+    } else {
+      // Add new transaction for rejected refund
+      transactionOrder.transactions.push({
+        transactionType: 'RefundRejected',
+        items: refundTransaction.items,
+        amount: refundTransaction.amount,
+        performedBy: req.adminId,
+        performedByType: 'Admin',
+        usertype: 'Casher',
+        notes: `${isFullRefund ? 'Full' : 'Partial'} refund rejected for order ${order._id}`
+      });
+
+      order.actions.push({
+        action: `${isFullRefund ? 'Full' : 'Partial'} Refund Rejected`,
+        user: req.adminId,
+        userType: 'Admin',
+        details: {
+          items: refundTransaction.items,
+          totalAmount: refundTransaction.amount
+        }
+      });
+
+      // Revert order status and set workflowStatus to Completed
+      order.status = 'Completed';
+      order.workflowStatus = 'Completed';
+    }
+
+    // Mark the original refund request as processed
+    refundTransaction.notes += ` | Processed: ${approve ? 'Approved' : 'Rejected'}`;
+
+    await order.save({ session });
+    await transactionOrder.save({ session });
+
+    await session.commitTransaction();
+
+    res.status(200).json({ 
+      message: `${isFullRefund ? 'Full' : 'Partial'} refund ${approve ? 'approved' : 'rejected'} successfully`, 
+      order,
+      transactionOrder 
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Refund approval error:', error.message);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  } finally {
+    session.endSession();
+  }
+});
+
 // create order for mobile //
 
 // JWT Authentication Middleware
