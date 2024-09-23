@@ -119,6 +119,31 @@ router.get('/categories', async (req, res) => {
   }
 });
 
+// Retrieve SubCategories
+router.get('/subcategories', async (req, res) => {
+  try {
+    const subcategories = await Subcategory.find({})
+      .populate('category', 'name imageUrl') // Populates category fields
+      .exec();
+
+    const result = subcategories.map(subcategory => ({
+      _id: subcategory._id,
+      name: subcategory.name,
+      imageUrl: subcategory.imageUrl,
+      category: subcategory.category ? { // Check if category is not null
+        _id: subcategory.category._id,
+        name: subcategory.category.name,
+        imageUrl: subcategory.category.imageUrl
+      } : null // If category is null, return null
+    }));
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Edit category
 router.put('/edit-category/:id', checkPermission('Edit_Category'), async (req, res) => {
   const { id } = req.params;
