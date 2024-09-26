@@ -1,7 +1,7 @@
 {
   "/Volumes/programming_folders/freelancer_projects/ecommerce/backend": {
     "versionSfCore": null,
-    "versionFramework": "4.4.0",
+    "versionFramework": "4.4.2",
     "isWithinCompose": false,
     "isCompose": false,
     "composeOrgName": null,
@@ -19,7 +19,7 @@
         "runtime": "nodejs18.x",
         "region": "me-south-1",
         "memorySize": 3008,
-        "timeout": 900,
+        "timeout": 29,
         "apiGateway": {
           "binaryMediaTypes": [
             "*/*"
@@ -106,6 +106,12 @@
               "Type": "AWS::Logs::LogGroup",
               "Properties": {
                 "LogGroupName": "/aws/lambda/e-commerce-future-dev-main"
+              }
+            },
+            "DailyOrderReminderLogGroup": {
+              "Type": "AWS::Logs::LogGroup",
+              "Properties": {
+                "LogGroupName": "/aws/lambda/e-commerce-future-dev-dailyOrderReminder"
               }
             },
             "IamRoleLambdaExecution": {
@@ -204,13 +210,13 @@
                   "S3Bucket": {
                     "Ref": "ServerlessDeploymentBucket"
                   },
-                  "S3Key": "serverless/e-commerce-future/dev/1727076935023-2024-09-23T07:35:35.023Z/e-commerce-future.zip"
+                  "S3Key": "serverless/e-commerce-future/dev/1727335620588-2024-09-26T07:27:00.588Z/e-commerce-future.zip"
                 },
                 "Handler": "index.handler",
                 "Runtime": "nodejs18.x",
                 "FunctionName": "e-commerce-future-dev-main",
                 "MemorySize": 3008,
-                "Timeout": 900,
+                "Timeout": 29,
                 "Environment": {
                   "Variables": {
                     "MONGO_URL": "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority",
@@ -229,6 +235,10 @@
                     "FB_GRAPH_API_TOKEN": "<REDACTED>",
                     "VIBER_AUTH_TOKEN": "<REDACTED>",
                     "TELEGRAM_BOT_TOKEN": "<REDACTED>",
+                    "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
+                    "ULTRAMSG_TOKEN": "<REDACTED>",
+                    "EMAIL_USER": "info@spc-it.com.iq",
+                    "EMAIL_PASS": "AltShiftDel123",
                     "PM2_HOME": "~/.pm2"
                   }
                 },
@@ -242,6 +252,77 @@
               "DependsOn": [
                 "MainLogGroup"
               ]
+            },
+            "DailyOrderReminderLambdaFunction": {
+              "Type": "AWS::Lambda::Function",
+              "Properties": {
+                "Code": {
+                  "S3Bucket": {
+                    "Ref": "ServerlessDeploymentBucket"
+                  },
+                  "S3Key": "serverless/e-commerce-future/dev/1727335620588-2024-09-26T07:27:00.588Z/e-commerce-future.zip"
+                },
+                "Handler": "index.dailyOrderReminder",
+                "Runtime": "nodejs18.x",
+                "FunctionName": "e-commerce-future-dev-dailyOrderReminder",
+                "MemorySize": 3008,
+                "Timeout": 29,
+                "Environment": {
+                  "Variables": {
+                    "MONGO_URL": "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority",
+                    "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
+                    "ULTRAMSG_TOKEN": "<REDACTED>",
+                    "EMAIL_USER": "info@spc-it.com.iq",
+                    "EMAIL_PASS": "AltShiftDel123"
+                  }
+                },
+                "Role": {
+                  "Fn::GetAtt": [
+                    "IamRoleLambdaExecution",
+                    "Arn"
+                  ]
+                }
+              },
+              "DependsOn": [
+                "DailyOrderReminderLogGroup"
+              ]
+            },
+            "DailyOrderReminderEventsRuleSchedule1": {
+              "Type": "AWS::Events::Rule",
+              "Properties": {
+                "ScheduleExpression": "rate(12 hours)",
+                "State": "ENABLED",
+                "Targets": [
+                  {
+                    "Arn": {
+                      "Fn::GetAtt": [
+                        "DailyOrderReminderLambdaFunction",
+                        "Arn"
+                      ]
+                    },
+                    "Id": "dailyOrderReminderSchedule"
+                  }
+                ]
+              }
+            },
+            "DailyOrderReminderLambdaPermissionEventsRuleSchedule1": {
+              "Type": "AWS::Lambda::Permission",
+              "Properties": {
+                "FunctionName": {
+                  "Fn::GetAtt": [
+                    "DailyOrderReminderLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "events.amazonaws.com",
+                "SourceArn": {
+                  "Fn::GetAtt": [
+                    "DailyOrderReminderEventsRuleSchedule1",
+                    "Arn"
+                  ]
+                }
+              }
             },
             "ApiGatewayRestApi": {
               "Type": "AWS::ApiGateway::RestApi",
@@ -319,7 +400,7 @@
                 "MainLambdaPermissionApiGateway"
               ]
             },
-            "ApiGatewayDeployment1727076931847": {
+            "ApiGatewayDeployment1727335617074": {
               "Type": "AWS::ApiGateway::Deployment",
               "Properties": {
                 "RestApiId": {
@@ -668,15 +749,12 @@
         "esbuild": {
           "external": [
             "sharp"
-          ],
-          "packagerOptions": {
-            "scripts": [
-              "npm install --arch=x64 --platform=linux sharp"
-            ]
-          },
-          "deploymentBucket": {
-            "name": "test22"
-          }
+          ]
+        },
+        "packagerOptions": {
+          "scripts": [
+            "npm install --arch=x64 --platform=linux sharp"
+          ]
         }
       },
       "functions": {
@@ -699,6 +777,10 @@
             "FB_GRAPH_API_TOKEN": "<REDACTED>",
             "VIBER_AUTH_TOKEN": "<REDACTED>",
             "TELEGRAM_BOT_TOKEN": "<REDACTED>",
+            "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
+            "ULTRAMSG_TOKEN": "<REDACTED>",
+            "EMAIL_USER": "info@spc-it.com.iq",
+            "EMAIL_PASS": "AltShiftDel123",
             "PM2_HOME": "~/.pm2"
           },
           "events": [
@@ -728,20 +810,45 @@
           "name": "e-commerce-future-dev-main",
           "package": {},
           "memory": 3008,
-          "timeout": 900,
+          "timeout": 29,
+          "runtime": "nodejs18.x",
+          "vpc": {}
+        },
+        "dailyOrderReminder": {
+          "handler": "index.dailyOrderReminder",
+          "environment": {
+            "MONGO_URL": "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority",
+            "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
+            "ULTRAMSG_TOKEN": "<REDACTED>",
+            "EMAIL_USER": "info@spc-it.com.iq",
+            "EMAIL_PASS": "AltShiftDel123"
+          },
+          "events": [
+            {
+              "schedule": {
+                "rate": [
+                  "rate(12 hours)"
+                ]
+              }
+            }
+          ],
+          "name": "e-commerce-future-dev-dailyOrderReminder",
+          "package": {},
+          "memory": 3008,
+          "timeout": 29,
           "runtime": "nodejs18.x",
           "vpc": {}
         }
       }
     },
-    "serviceRawFile": "service: e-commerce-future\n\nprovider:\n  name: aws\n  versionFunctions: false\n  runtime: nodejs18.x\n  region: me-south-1\n  memorySize: 3008\n  timeout: 900\n  apiGateway:\n    binaryMediaTypes:\n      - '*/*'\n  httpApi:\n    cors: true\n  \n\ncustom:\n  esbuild:\n    external:\n      - sharp\n    packagerOptions:\n      scripts:\n        - npm install --arch=x64 --platform=linux sharp\n    deploymentBucket:\n      name: test22\n      \n\nfunctions:\n  main:\n    handler: index.handler\n    environment:\n      MONGO_URL: \"mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority\"\n      TOKEN_SECRET: \"laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs\"\n      ADMIN_SECRET_KEY: \"FoodoYusif123@\"\n      JWT_SECRET: \"1234567890\"\n      TWILIO_ACCOUNT_SID: \"AC910896cde4bfb662ca9fe076b02536e7\"\n      TWILIO_AUTH_TOKEN: \"5ce307ff197422b1b5f97849f4e5db2c\"\n      TWILIO_PHONE_NUMBER: \"+13466666692\"\n      TWILIO_WHATSAPP_PHONE: \"+14155238886\"\n      EMAIL_USERNAME: \"yusifdhrgamtrt@gmail.com\"\n      EMAIL_PASSWORD: \"lzjnrolzwuspywug\"\n      ACCESS_KEY: \"AKIAVCZ3WWWGPXVCKJBA\"\n      SECRET_ACCESS_KEY: \"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\"\n      AWS_NAME: \"codellab\"\n      FB_GRAPH_API_TOKEN: \"EAAIE6J8ewBUBANQt5nEBIURGdgjURdMs3e9A78qWt1uOMOyfThvjSdgoz0q6ZC2ZBNuZCmba7SNRlpWFdeLuLylMEIrLlkxZAmSjKiZAQyr2uVwvJjytGFZBRnywQUbudJBfxQXWx3rCyOZBscmiWlnrbTswIZAWZAZAsDDbsR8lwqNar58Q9swAfNnZB4xUOvQ8BwURyJUAy0wFgZDZD\"\n      VIBER_AUTH_TOKEN: \"50ae4cd97ca7e5c1-27076050a42dc54c-de9a63fa03059af1\"\n      TELEGRAM_BOT_TOKEN: \"5612346036:AAGb0txW0SPrQSToEIQODxI_gMEdVCMJKWs\"\n      PM2_HOME: ~/.pm2\n    events:\n    - websocket:\n          route: $default\n    - websocket:\n          route: $connect\n    - websocket:\n          route: $disconnect\n    - http:\n         path: /{proxy+}\n         method: ANY\n",
+    "serviceRawFile": "service: e-commerce-future\n\nprovider:\n  name: aws\n  versionFunctions: false\n  runtime: nodejs18.x\n  region: me-south-1\n  memorySize: 3008\n  timeout: 29  # Adjusted to 29 seconds to comply with API Gateway limits\n  apiGateway:\n    binaryMediaTypes:\n      - '*/*'\n  httpApi:\n    cors: true\n\ncustom:\n  esbuild:\n    external:\n      - sharp\n  packagerOptions:\n    scripts:\n      - npm install --arch=x64 --platform=linux sharp\n\nfunctions:\n  main:\n    handler: index.handler\n    environment:\n      MONGO_URL: \"mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority\"\n      TOKEN_SECRET: \"laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs\"\n      ADMIN_SECRET_KEY: \"FoodoYusif123@\"\n      JWT_SECRET: \"1234567890\"\n      TWILIO_ACCOUNT_SID: \"AC910896cde4bfb662ca9fe076b02536e7\"\n      TWILIO_AUTH_TOKEN: \"5ce307ff197422b1b5f97849f4e5db2c\"\n      TWILIO_PHONE_NUMBER: \"+13466666692\"\n      TWILIO_WHATSAPP_PHONE: \"+14155238886\"\n      EMAIL_USERNAME: \"yusifdhrgamtrt@gmail.com\"\n      EMAIL_PASSWORD: \"lzjnrolzwuspywug\"\n      ACCESS_KEY: \"AKIAVCZ3WWWGPXVCKJBA\"\n      SECRET_ACCESS_KEY: \"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\"\n      AWS_NAME: \"codellab\"\n      FB_GRAPH_API_TOKEN: \"EAAIE6J8ewBUBANQt5nEBIURGdgjURdMs3e9A78qWt1uOMOyfThvjSdgoz0q6ZC2ZBNuZCmba7SNRlpWFdeLuLylMEIrLlkxZAmSjKiZAQyr2uVwvJjytGFZBRnywQUbudJBfxQXWx3rCyOZBscmiWlnrbTswIZAWZAZAsDDbsR8lwqNar58Q9swAfNnZB4xUOvQ8BwURyJUAy0wFgZDZD\"\n      VIBER_AUTH_TOKEN: \"50ae4cd97ca7e5c1-27076050a42dc54c-de9a63fa03059af1\"\n      TELEGRAM_BOT_TOKEN: \"5612346036:AAGb0txW0SPrQSToEIQODxI_gMEdVCMJKWs\"\n      ULTRAMSG_API_URL: \"https://api.ultramsg.com/instance87136/messages/chat\"\n      ULTRAMSG_TOKEN: \"2i9r14uumbiddwpb\"\n      EMAIL_USER: \"info@spc-it.com.iq\"\n      EMAIL_PASS: \"AltShiftDel123\"\n      PM2_HOME: ~/.pm2\n    events:\n      - websocket:\n          route: $default\n      - websocket:\n          route: $connect\n      - websocket:\n          route: $disconnect\n      - http:\n          path: /{proxy+}\n          method: ANY\n\n  dailyOrderReminder:\n    handler: index.dailyOrderReminder\n    environment:\n      MONGO_URL: \"mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority\"\n      ULTRAMSG_API_URL: \"https://api.ultramsg.com/instance87136/messages/chat\"\n      ULTRAMSG_TOKEN: \"2i9r14uumbiddwpb\"\n      EMAIL_USER: \"info@spc-it.com.iq\"\n      EMAIL_PASS: \"AltShiftDel123\"\n    events:\n      - schedule:\n          rate: rate(12 hours)",
     "command": [
       "deploy"
     ],
     "options": {},
     "error": null,
     "params": {},
-    "machineId": "32376a9769ec0f5e553f2e0b1869ca67",
+    "machineId": "382cea1ce04de7ab0bbb3b32d78b8340",
     "stage": "dev",
     "accessKeyV2": "<REDACTED>",
     "accessKeyV1": "<REDACTED>",
@@ -764,13 +871,13 @@
     "serviceProviderAwsCredentials": "<REDACTED>",
     "serviceProviderAwsAccountId": "689316488695",
     "projectType": "traditional",
-    "versionSf": "4.4.0",
+    "versionSf": "4.4.2",
     "serviceProviderAwsCfStackName": "e-commerce-future-dev",
     "integrations": {},
     "serviceUniqueId": "arn:aws:cloudformation:me-south-1:689316488695:stack/e-commerce-future-dev/96d1b5f0-2459-11ef-9197-06fc2dc5b07f",
     "serviceProviderAwsCfStackId": "arn:aws:cloudformation:me-south-1:689316488695:stack/e-commerce-future-dev/96d1b5f0-2459-11ef-9197-06fc2dc5b07f",
     "serviceProviderAwsCfStackCreated": "2024-06-06T23:07:47.344Z",
-    "serviceProviderAwsCfStackUpdated": "2024-09-23T07:35:54.573Z",
+    "serviceProviderAwsCfStackUpdated": "2024-09-26T07:27:22.929Z",
     "serviceProviderAwsCfStackStatus": "UPDATE_COMPLETE",
     "serviceProviderAwsCfStackOutputs": [
       {

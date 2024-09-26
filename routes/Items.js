@@ -666,5 +666,67 @@ router.get('/items/SearchByIdOrName', async (req, res) => {
   }
 });
 
+// DELETE an item by ID if no quantity is present in storageQuantities
+router.delete('/items/:id', checkPermission('Delete_item'), async (req, res) => {
+  try {
+    const itemId = req.params.id;
+
+    // Find the item by ID
+    const item = await Item.findById(itemId);
+
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+
+    // Check if all storageQuantities have zero quantity
+    const hasNonZeroQuantity = item.storageQuantities.some(
+      (storageQty) => storageQty.quantity > 0
+    );
+
+    if (hasNonZeroQuantity) {
+      return res.status(400).json({
+        message: 'Item cannot be deleted as it has quantities in storage'
+      });
+    }
+
+    // Delete the item
+    await Item.findByIdAndDelete(itemId);
+
+    res.status(200).json({ message: 'Item successfully deleted' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// edit the price and cost
+router.put('/items/editprice/:id', checkPermission('canEditItem'), async (req, res) => {
+  const { price, cost } = req.body;
+  
+  // Validate the input to make sure price and cost are provided
+  if (price == null || cost == null) {
+    return res.status(400).json({ message: 'Price and cost are required' });
+  }
+
+  try {
+    // Find the item by ID and update its price and cost
+    const updatedItem = await Item.findByIdAndUpdate(
+      req.params.id,
+      { price, cost },
+      { new: true } // This option returns the updated item
+    );
+
+    if (!updatedItem) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+
+    res.status(200).json({
+      message: 'Item updated successfully',
+      item: updatedItem
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 
   module.exports = router;

@@ -4,6 +4,7 @@ const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const app = express();
+const dns = require('dns').promises;
 dotenv.config();
 const AdminAssignRole = require("./routes/AdminAssignRole");
 const AdminLogin = require("./routes/AdminLogin");
@@ -24,27 +25,16 @@ const Cart = require("./routes/Cart");
 const Keycard = require("./routes/Keycard");
 const Banner = require("./routes/Banner");
 const Reports = require("./routes/Reports");
-const Uploadbulk = require("./routes/UploadBulk")
+const Uploadbulk = require("./routes/UploadBulk");
+const { router: Notification, checkOrdersAndSendReminders } = require("./routes/Nontification");
 
-// const helmet = require("helmet");
-// const rateLimit = require("express-rate-limit");
 const serverless = require('serverless-http');
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(cors());
-// Use helmet to set HTTP headers that improve security
-// app.use(helmet());
-// const rateLimiter = rateLimit({
-//   windowMs: 60 * 60 * 1000, // 1 hour
-//   max: 4000000000, // limit each IP to 400 requests per windowMs
-// });
 
-// // Apply the rate limiter to all routes
-// app.use(rateLimiter);
-
-// enable CORS and allow x-auth-token header
 app.use(function(req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT");
@@ -63,10 +53,10 @@ async function connectToMongoDB() {
       maxPoolSize: 4,
     });
     console.log("MongoDB Connected");
-    return dbConnection; // Return the connection object
+    return dbConnection;
   } catch (err) {
     console.error("MongoDB Connection Error:", err);
-    throw err; // Rethrow the error to handle it later
+    throw err;
   }
 }
 
@@ -104,9 +94,54 @@ app.use("/Keycard", Keycard);
 app.use("/Banner", Banner);
 app.use("/Reports", Reports);
 app.use("/Uploadbulk", Uploadbulk);
+app.use("/Notification", Notification);
 
 // Lambda function handler
 module.exports.handler = (event, context, callback) => {
   const handler = serverless(app);
   return handler(event, context, callback);
+};
+
+// New handler for CloudWatch Events
+module.exports.dailyOrderReminder = async (event, context) => {
+  context.callbackWaitsForEmptyEventLoop = false;
+
+  // Set custom DNS servers
+  dns.setServers(['8.8.8.8', '8.8.4.4']);
+
+  let dbConnection;
+  try {
+    // Create a new connection for this invocation
+    dbConnection = await mongoose.connect(process.env.MONGO_URL, {
+      useUnifiedTopology: true,
+      useNewUrlParser: true,
+      maxIdleTimeMS: 270000,
+      minPoolSize: 2,
+      maxPoolSize: 4,
+    });
+    console.log("MongoDB Connected in dailyOrderReminder");
+
+    // Pass the dbConnection to checkOrdersAndSendReminders if needed
+    const result = await checkOrdersAndSendReminders(dbConnection);
+    console.log(result.message || result.error);
+
+    return { 
+      statusCode: result.error ? 404 : 200, 
+      body: JSON.stringify(result) 
+    };
+  } catch (error) {
+    console.error('Error in dailyOrderReminder:', error);
+    return { 
+      statusCode: 500, 
+      body: JSON.stringify({ error: 'فشل في إرسال التذكيرات' }) 
+    };
+  } finally {
+    // Close the connection after use
+    if (dbConnection) {
+      await mongoose.connection.close();
+      console.log("MongoDB connection closed");
+    }
+    // Reset DNS servers to default
+    dns.setServers(['8.8.8.8', '8.8.4.4']);
+  }
 };

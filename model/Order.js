@@ -8,7 +8,8 @@ const orderSchema = new Schema({
     item: { type: Schema.Types.ObjectId, ref: 'Item', required: true },
     quantity: { type: Number, required: true },
     deliveredQuantity: { type: Number, default: 0 },
-    cancelledQuantity: { type: Number, default: 0 }
+    cancelledQuantity: { type: Number, default: 0 },
+    deliveryDate: { type: Date }
   }],
   status: { type: String, default: 'Pending' },
   workflowStatus: { type: String, default: 'Sales' },
@@ -23,14 +24,16 @@ const orderSchema = new Schema({
         quantity: Number,
         deliveredQuantity: Number,
         cancelledQuantity: Number,
-        price: Number
+        price: Number,
+        deliveryDate: Date
       }],
       totalAmount: Number
     }
   }],
+  remainingDeliveryDate: { type: Date },  // Moved to main order
+  reminderSent: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 
 const Order = mongoose.model('Order', orderSchema);
-
 module.exports = Order;

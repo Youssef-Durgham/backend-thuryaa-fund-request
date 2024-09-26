@@ -478,7 +478,8 @@ router.get('/order/:id', checkPermission('Search_order'), async (req, res) => {
       ...item,
       deliveredQuantity: item.deliveredQuantity || 0,
       cancelledQuantity: item.cancelledQuantity || 0,
-      remainingQuantity: item.quantity - (item.deliveredQuantity || 0) - (item.cancelledQuantity || 0)
+      remainingQuantity: item.quantity - (item.deliveredQuantity || 0) - (item.cancelledQuantity || 0),
+      remainingDeliveryDate: item.remainingDeliveryDate // Ensure this is returned
     }));
 
     const transactionOrder = await TransactionOrder.findOne({ order: order._id })
@@ -515,7 +516,8 @@ router.get('/order/:id', checkPermission('Search_order'), async (req, res) => {
         item: {
           _id: item.item._id || item.item,
           name: itemNameMap[item.item._id || item.item] || 'Unknown Item'
-        }
+        },
+        remainingDeliveryDate: item.remainingDeliveryDate // Ensure this is returned in the action details as well
       }));
     };
 
@@ -841,7 +843,7 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
 
   try {
     const { id } = req.params;
-    const { storageSelections, items, type } = req.body;
+    const { storageSelections, items, type, remainingDeliveryDate } = req.body;
 
     const order = await Order.findById(id).populate('items.item').session(session);
     if (!order) {
@@ -903,8 +905,13 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
 
       await orderItem.item.save({ session });
 
-      // Update order item delivered quantity
+      // Update order item delivered quantity and delivery dates
       orderItem.deliveredQuantity = (orderItem.deliveredQuantity || 0) + Number(quantity);
+      orderItem.deliveryDate = new Date(); // Set current date as delivery date for delivered items
+
+      if (orderItem.deliveredQuantity + (orderItem.cancelledQuantity || 0) < orderItem.quantity) {
+        isFullDelivery = false;
+      }
 
       deliveredItems.push({
         item: orderItem.item._id,
@@ -912,13 +919,10 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
         price: orderItem.item.price,
         storage: storageId,
         partition: partitionId,
-        amount: Number(orderItem.item.price) * Number(quantity)
+        amount: Number(orderItem.item.price) * Number(quantity),
+        deliveryDate: orderItem.deliveryDate
       });
       totalAmount += Number(orderItem.item.price) * Number(quantity);
-
-      if (orderItem.deliveredQuantity + (orderItem.cancelledQuantity || 0) < orderItem.quantity) {
-        isFullDelivery = false;
-      }
     }
 
     // Find or create TransactionOrder
@@ -940,13 +944,15 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
 
     await transactionOrder.save({ session });
 
-    // Update order status
+    // Update order status and set remainingDeliveryDate for partial delivery
     if (isFullDelivery) {
       order.workflowStatus = 'Completed';
       order.status = 'Completed';
     } else {
       order.status = 'PartiallyDelivered';
+      order.remainingDeliveryDate = remainingDeliveryDate; // Set remaining delivery date for partial delivery
     }
+
     order.actions.push({
       action: isFullDelivery ? 'Order Fully Delivered' : 'Order Partially Delivered',
       user: req.adminId,
@@ -956,6 +962,7 @@ router.post('/activate-order-mm/:id', checkPermission('activate_order_mm'), asyn
         totalAmount: totalAmount
       }
     });
+
     await order.save({ session });
 
     await session.commitTransaction();

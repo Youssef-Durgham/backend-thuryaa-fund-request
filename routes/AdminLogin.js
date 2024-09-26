@@ -50,13 +50,13 @@ const checkPermission = (permission) => {
 
 // Create admin account
 router.post('/create-admin/sys', checkPermission('Create_admin'), async (req, res) => {
-  const { phone, name, password } = req.body;
+  const { phone, name, password, email } = req.body;
   try {
     let admin = await Admin.findOne({ phone });
     if (admin) {
       return res.status(400).json({ message: 'Admin already exists' });
     }
-    admin = new Admin({ phone, name, password });
+    admin = new Admin({ phone, name, password, email });
     await admin.save();
     res.status(201).json({ message: 'Admin created successfully', admin });
   } catch (error) {
