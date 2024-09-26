@@ -83,6 +83,12 @@
         "LogGroupName": "/aws/lambda/e-commerce-future-dev-dailyOrderReminder"
       }
     },
+    "DailyItemsReminderLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/e-commerce-future-dev-dailyItemsReminder"
+      }
+    },
     "IamRoleLambdaExecution": {
       "Type": "AWS::IAM::Role",
       "Properties": {
@@ -179,7 +185,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/e-commerce-future/dev/1727335620588-2024-09-26T07:27:00.588Z/e-commerce-future.zip"
+          "S3Key": "serverless/e-commerce-future/dev/1727337478997-2024-09-26T07:57:58.997Z/e-commerce-future.zip"
         },
         "Handler": "index.handler",
         "Runtime": "nodejs18.x",
@@ -229,7 +235,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/e-commerce-future/dev/1727335620588-2024-09-26T07:27:00.588Z/e-commerce-future.zip"
+          "S3Key": "serverless/e-commerce-future/dev/1727337478997-2024-09-26T07:57:58.997Z/e-commerce-future.zip"
         },
         "Handler": "index.dailyOrderReminder",
         "Runtime": "nodejs18.x",
@@ -254,6 +260,40 @@
       },
       "DependsOn": [
         "DailyOrderReminderLogGroup"
+      ]
+    },
+    "DailyItemsReminderLambdaFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Ref": "ServerlessDeploymentBucket"
+          },
+          "S3Key": "serverless/e-commerce-future/dev/1727337478997-2024-09-26T07:57:58.997Z/e-commerce-future.zip"
+        },
+        "Handler": "index.dailyItemsReminder",
+        "Runtime": "nodejs18.x",
+        "FunctionName": "e-commerce-future-dev-dailyItemsReminder",
+        "MemorySize": 3008,
+        "Timeout": 29,
+        "Environment": {
+          "Variables": {
+            "MONGO_URL": "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority",
+            "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
+            "ULTRAMSG_TOKEN": "2i9r14uumbiddwpb",
+            "EMAIL_USER": "info@spc-it.com.iq",
+            "EMAIL_PASS": "AltShiftDel123"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "IamRoleLambdaExecution",
+            "Arn"
+          ]
+        }
+      },
+      "DependsOn": [
+        "DailyItemsReminderLogGroup"
       ]
     },
     "DailyOrderReminderEventsRuleSchedule1": {
@@ -288,6 +328,43 @@
         "SourceArn": {
           "Fn::GetAtt": [
             "DailyOrderReminderEventsRuleSchedule1",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "DailyItemsReminderEventsRuleSchedule1": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "ScheduleExpression": "rate(24 hours)",
+        "State": "ENABLED",
+        "Targets": [
+          {
+            "Arn": {
+              "Fn::GetAtt": [
+                "DailyItemsReminderLambdaFunction",
+                "Arn"
+              ]
+            },
+            "Id": "dailyItemsReminderSchedule"
+          }
+        ]
+      }
+    },
+    "DailyItemsReminderLambdaPermissionEventsRuleSchedule1": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "DailyItemsReminderLambdaFunction",
+            "Arn"
+          ]
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "DailyItemsReminderEventsRuleSchedule1",
             "Arn"
           ]
         }
@@ -369,7 +446,7 @@
         "MainLambdaPermissionApiGateway"
       ]
     },
-    "ApiGatewayDeployment1727335617074": {
+    "ApiGatewayDeployment1727337475269": {
       "Type": "AWS::ApiGateway::Deployment",
       "Properties": {
         "RestApiId": {

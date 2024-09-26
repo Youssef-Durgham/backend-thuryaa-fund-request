@@ -68,3 +68,16 @@ functions:
     events:
       - schedule:
           rate: rate(12 hours)
+
+  dailyItemsReminder:
+    handler: index.dailyItemsReminder
+    environment:
+      MONGO_URL: "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority"
+      ULTRAMSG_API_URL: "https://api.ultramsg.com/instance87136/messages/chat"
+      ULTRAMSG_TOKEN: "2i9r14uumbiddwpb"
+      EMAIL_USER: "info@spc-it.com.iq"
+      EMAIL_PASS: "AltShiftDel123"
+    events:
+      - schedule:
+          rate: rate(24 hours)
+

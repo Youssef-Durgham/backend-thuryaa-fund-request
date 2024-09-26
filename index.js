@@ -26,7 +26,7 @@ const Keycard = require("./routes/Keycard");
 const Banner = require("./routes/Banner");
 const Reports = require("./routes/Reports");
 const Uploadbulk = require("./routes/UploadBulk");
-const { router: Notification, checkOrdersAndSendReminders } = require("./routes/Nontification");
+const { router: Notification, checkOrdersAndSendReminders, checkItemsAndSendReminders } = require("./routes/Nontification");
 
 const serverless = require('serverless-http');
 
@@ -134,6 +134,50 @@ module.exports.dailyOrderReminder = async (event, context) => {
     return { 
       statusCode: 500, 
       body: JSON.stringify({ error: 'فشل في إرسال التذكيرات' }) 
+    };
+  } finally {
+    // Close the connection after use
+    if (dbConnection) {
+      await mongoose.connection.close();
+      console.log("MongoDB connection closed");
+    }
+    // Reset DNS servers to default
+    dns.setServers(['8.8.8.8', '8.8.4.4']);
+  }
+};
+
+// New handler for CloudWatch Events
+module.exports.dailyItemsReminder = async (event, context) => {
+  context.callbackWaitsForEmptyEventLoop = false;
+
+  // Set custom DNS servers
+  dns.setServers(['8.8.8.8', '8.8.4.4']);
+
+  let dbConnection;
+  try {
+    // Create a new connection for this invocation
+    dbConnection = await mongoose.connect(process.env.MONGO_URL, {
+      useUnifiedTopology: true,
+      useNewUrlParser: true,
+      maxIdleTimeMS: 270000,
+      minPoolSize: 2,
+      maxPoolSize: 4,
+    });
+    console.log("MongoDB Connected in dailyItemsReminder");
+
+    // Pass the dbConnection to checkItemsAndSendReminders
+    const result = await checkItemsAndSendReminders(dbConnection);
+    console.log(result.message || result.error);
+
+    return { 
+      statusCode: result.error ? 404 : 200, 
+      body: JSON.stringify(result) 
+    };
+  } catch (error) {
+    console.error('Error in dailyItemsReminder:', error);
+    return { 
+      statusCode: 500, 
+      body: JSON.stringify({ error: 'فشل في إرسال التذكيرات', details: error.message }) 
     };
   } finally {
     // Close the connection after use

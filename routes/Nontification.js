@@ -3,8 +3,11 @@ const { Admin } = require('../model/Users'); // Adjust the path as needed
 const nodemailer = require('nodemailer');
 const axios = require('axios');
 const Order = require('../model/Order');
+const Item = require('../model/Item');
+const Storage = require('../model/Storage');
 const { Role } = require('../model/Role');
 const router = express.Router();
+const mongoose = require('mongoose');
 
 // Function to send WhatsApp message
 async function sendWhatsApp(phone, message) {
@@ -144,11 +147,11 @@ async function checkOrdersAndSendReminders() {
     }
 
     // Query for admin role
-    const activateOrderMmRole = await Role.findOne({ permissions: 'activate_order_mm' });
+    const activateOrderMmRole = await Role.findOne({ permissions: 'sendOrderReminderDelivery' });
 
     if (!activateOrderMmRole) {
-      console.error('No role with activate_order_mm permission found');
-      return { error: 'No role with activate_order_mm permission found' };
+      console.error('No role with sendOrderReminderDelivery permission found');
+      return { error: 'No role with sendOrderReminderDelivery permission found' };
     }
 
     const adminUsers = await Admin.find({ roles: activateOrderMmRole._id });
@@ -192,4 +195,127 @@ router.get('/check-orders-notification', async (req, res) => {
   }
 });
 
-module.exports = { router, checkOrdersAndSendReminders };
+
+
+async function checkItemsAndSendReminders(dbConnection) {
+  console.log('Starting checkItemsAndSendReminders function');
+  
+  try {
+    // Ensure database connection
+    if (mongoose.connection.readyState !== 1) {
+      console.log('MongoDB connection is not ready. Current state:', mongoose.connection.readyState);
+      if (!dbConnection) {
+        throw new Error('No database connection provided');
+      }
+      mongoose.connection = dbConnection.connection;
+    }
+
+    console.log('Fetching items from database');
+    const items = await Item.find().lean();
+    console.log(`Found ${items.length} items`);
+
+    const itemsWithZeroQty = [];
+
+    for (const item of items) {
+      // Check if totalQuantity is 0 or if all storageQuantities are 0
+      if (item.totalQuantity === 0 || 
+          (item.storageQuantities && item.storageQuantities.every(sq => sq.quantity === 0))) {
+        itemsWithZeroQty.push(item);
+      }
+    }
+
+    console.log(`Found ${itemsWithZeroQty.length} items with zero quantity`);
+
+    if (itemsWithZeroQty.length === 0) {
+      console.log('No items with zero quantity found.');
+      return { message: 'No items with zero quantity found' };
+    }
+
+    console.log('Querying for admin role');
+    const activateOrderMmRole = await Role.findOne({ permissions: 'sendReminderZeroitemqty' });
+
+    if (!activateOrderMmRole) {
+      console.error('No role with sendReminderZeroitemqty permission found');
+      return { error: 'No role with sendReminderZeroitemqty permission found' };
+    }
+
+    console.log('Fetching admin users');
+    const adminUsers = await Admin.find({ roles: activateOrderMmRole._id });
+
+    if (adminUsers.length === 0) {
+      console.error('No admin users with the required role found');
+      return { error: 'No admin users with the required role found' };
+    }
+
+    console.log(`Found ${adminUsers.length} admin users to notify`);
+
+    // Send alerts via email and WhatsApp to admin users
+    const alertTextMessage = formatItemsAlertMessage(itemsWithZeroQty);
+    const alertHTMLMessage = formatItemsAlertMessageHTML(itemsWithZeroQty);
+    for (const admin of adminUsers) {
+      await sendEmail(admin.email, 'تنبيه: مواد بكمية صفرية', alertTextMessage, alertHTMLMessage);
+      await sendWhatsApp(admin.phone, alertTextMessage);
+    }
+
+    console.log('Alerts sent successfully');
+    return { message: `Alerts sent for ${itemsWithZeroQty.length} items with zero quantity to ${adminUsers.length} admin users` };
+  } catch (error) {
+    console.error('Error in checkItemsAndSendReminders:', error);
+    return { error: 'Failed to send item alerts', details: error.message };
+  }
+}
+
+function formatItemsAlertMessage(items) {
+  let message = `🚨 *تنبيه هام: مواد بكمية صفرية* 🚨\n\n`;
+  message += `السلام عليكم ورحمة الله وبركاته،\n\n`;
+  message += `نود إعلامكم بوجود المواد التالية بكمية صفرية في جميع المخازن:\n\n`;
+
+  items.forEach((item, index) => {
+    message += `📦 *المادة ${index + 1}:*\n`;
+    message += `┌─────────────────────\n`;
+    message += `│ اسم المادة: *${item.name}*\n`;
+    message += `│ رمز المنتج: ${item.productId}\n`;
+    message += `│ الكمية الإجمالية: ${item.totalQuantity}\n`;
+    message += `└─────────────────────\n\n`;
+  });
+
+  message += `يرجى اتخاذ الإجراءات اللازمة لتجديد مخزون هذه المواد في أقرب وقت ممكن.\n\n`;
+  message += `شكرًا لاهتمامكم العاجل بهذه المسألة.\n\n`;
+  message += `مع أطيب التحيات،\n`;
+  message += `فريق إدارة المخزون 🏭`;
+
+  return message;
+}
+
+function formatItemsAlertMessageHTML(items) {
+  let html = `
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; direction: rtl; text-align: right;">
+        <h2 style="color: #4a4a4a;">🚨 تنبيه هام: مواد بكمية صفرية 🚨</h2>
+        <p>السلام عليكم ورحمة الله وبركاته،</p>
+        <p>نود إعلامكم بوجود المواد التالية بكمية صفرية في جميع المخازن:</p>
+  `;
+
+  items.forEach((item, index) => {
+    html += `
+      <div style="background-color: #f9f9f9; border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; border-radius: 5px;">
+        <h3 style="color: #2c3e50; margin-top: 0;">📦 المادة ${index + 1}</h3>
+        <p><strong>اسم المادة:</strong> ${item.name}</p>
+        <p><strong>رمز المنتج:</strong> ${item.productId}</p>
+        <p><strong>الكمية الإجمالية:</strong> ${item.totalQuantity}</p>
+      </div>
+    `;
+  });
+
+  html += `
+        <p>يرجى اتخاذ الإجراءات اللازمة لتجديد مخزون هذه المواد في أقرب وقت ممكن.</p>
+        <p>شكرًا لاهتمامكم العاجل بهذه المسألة.</p>
+        <p>مع أطيب التحيات،<br>فريق إدارة المخزون 🏭</p>
+      </body>
+    </html>
+  `;
+
+  return html;
+}
+
+module.exports = { router, checkOrdersAndSendReminders, checkItemsAndSendReminders };
