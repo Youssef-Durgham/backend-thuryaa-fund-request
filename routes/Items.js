@@ -60,19 +60,25 @@ router.post('/define-items', checkPermission('Define_items'), async (req, res) =
     const definedItems = [];
 
     for (const item of items) {
-      const { name, productId, mainImageUrl, images, category, subcategory, supplier, profitPercentage, UOM, Specification, Brand } = item;
+      const { name, productId, mainImageUrl, images = [], category, subcategory, supplier, profitPercentage, UOM, Specification, Brand } = item;
 
+      // Check if the item already exists
       let existingItem = await Item.findOne({ productId });
 
       if (existingItem) {
         return res.status(400).json({ message: `Item with productId ${productId} already exists` });
       }
 
+      // Ensure mainImageUrl is added to the images array if not already present
+      if (!images.includes(mainImageUrl)) {
+        images.unshift(mainImageUrl); // Add mainImageUrl to the beginning of the images array
+      }
+
       const newItem = new Item({
         name,
         productId,
         mainImageUrl,
-        images,
+        images,  // Save the modified images array
         price: 0,
         cost: 0,
         totalQuantity: 0,
@@ -86,9 +92,11 @@ router.post('/define-items', checkPermission('Define_items'), async (req, res) =
         inventory: []
       });
 
+      // Save the new item
       await newItem.save();
       definedItems.push(newItem);
 
+      // Log the action in the activity log
       const activityLog = new ActivityLog({
         action: 'Add_item',
         performedBy: req.adminId,

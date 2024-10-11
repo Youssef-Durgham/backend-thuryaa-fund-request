@@ -74,19 +74,19 @@
     "MainLogGroup": {
       "Type": "AWS::Logs::LogGroup",
       "Properties": {
-        "LogGroupName": "/aws/lambda/e-commerce-future-dev-main"
+        "LogGroupName": "/aws/lambda/e-commerce-future-prod-main"
       }
     },
     "DailyOrderReminderLogGroup": {
       "Type": "AWS::Logs::LogGroup",
       "Properties": {
-        "LogGroupName": "/aws/lambda/e-commerce-future-dev-dailyOrderReminder"
+        "LogGroupName": "/aws/lambda/e-commerce-future-prod-dailyOrderReminder"
       }
     },
     "DailyItemsReminderLogGroup": {
       "Type": "AWS::Logs::LogGroup",
       "Properties": {
-        "LogGroupName": "/aws/lambda/e-commerce-future-dev-dailyItemsReminder"
+        "LogGroupName": "/aws/lambda/e-commerce-future-prod-dailyItemsReminder"
       }
     },
     "IamRoleLambdaExecution": {
@@ -115,7 +115,7 @@
                 "-",
                 [
                   "e-commerce-future",
-                  "dev",
+                  "prod",
                   "lambda"
                 ]
               ]
@@ -132,7 +132,7 @@
                   ],
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/e-commerce-future-dev*:*"
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/e-commerce-future-prod*:*"
                     }
                   ]
                 },
@@ -143,7 +143,7 @@
                   ],
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/e-commerce-future-dev*:*:*"
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/e-commerce-future-prod*:*:*"
                     }
                   ]
                 },
@@ -168,7 +168,7 @@
             "-",
             [
               "e-commerce-future",
-              "dev",
+              "prod",
               {
                 "Ref": "AWS::Region"
               },
@@ -185,11 +185,11 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/e-commerce-future/dev/1727337478997-2024-09-26T07:57:58.997Z/e-commerce-future.zip"
+          "S3Key": "serverless/e-commerce-future/prod/1728655811494-2024-10-11T14:10:11.494Z/e-commerce-future.zip"
         },
         "Handler": "index.handler",
         "Runtime": "nodejs18.x",
-        "FunctionName": "e-commerce-future-dev-main",
+        "FunctionName": "e-commerce-future-prod-main",
         "MemorySize": 3008,
         "Timeout": 29,
         "Environment": {
@@ -235,11 +235,11 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/e-commerce-future/dev/1727337478997-2024-09-26T07:57:58.997Z/e-commerce-future.zip"
+          "S3Key": "serverless/e-commerce-future/prod/1728655811494-2024-10-11T14:10:11.494Z/e-commerce-future.zip"
         },
         "Handler": "index.dailyOrderReminder",
         "Runtime": "nodejs18.x",
-        "FunctionName": "e-commerce-future-dev-dailyOrderReminder",
+        "FunctionName": "e-commerce-future-prod-dailyOrderReminder",
         "MemorySize": 3008,
         "Timeout": 29,
         "Environment": {
@@ -269,11 +269,11 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/e-commerce-future/dev/1727337478997-2024-09-26T07:57:58.997Z/e-commerce-future.zip"
+          "S3Key": "serverless/e-commerce-future/prod/1728655811494-2024-10-11T14:10:11.494Z/e-commerce-future.zip"
         },
         "Handler": "index.dailyItemsReminder",
         "Runtime": "nodejs18.x",
-        "FunctionName": "e-commerce-future-dev-dailyItemsReminder",
+        "FunctionName": "e-commerce-future-prod-dailyItemsReminder",
         "MemorySize": 3008,
         "Timeout": 29,
         "Environment": {
@@ -373,7 +373,7 @@
     "ApiGatewayRestApi": {
       "Type": "AWS::ApiGateway::RestApi",
       "Properties": {
-        "Name": "dev-e-commerce-future",
+        "Name": "prod-e-commerce-future",
         "BinaryMediaTypes": [
           "*/*"
         ],
@@ -446,13 +446,13 @@
         "MainLambdaPermissionApiGateway"
       ]
     },
-    "ApiGatewayDeployment1727337475269": {
+    "ApiGatewayDeployment1728655807785": {
       "Type": "AWS::ApiGateway::Deployment",
       "Properties": {
         "RestApiId": {
           "Ref": "ApiGatewayRestApi"
         },
-        "StageName": "dev"
+        "StageName": "prod"
       },
       "DependsOn": [
         "ApiGatewayMethodProxyVarAny"
@@ -498,7 +498,7 @@
     "WebsocketsApi": {
       "Type": "AWS::ApiGatewayV2::Api",
       "Properties": {
-        "Name": "dev-e-commerce-future-websockets",
+        "Name": "prod-e-commerce-future-websockets",
         "RouteSelectionExpression": "$request.body.action",
         "Description": "Serverless Websockets",
         "ProtocolType": "WEBSOCKET"
@@ -622,14 +622,14 @@
         "ApiId": {
           "Ref": "WebsocketsApi"
         },
-        "StageName": "dev",
+        "StageName": "prod",
         "Description": "Serverless Websockets",
         "DeploymentId": {
-          "Ref": "WebsocketsDeploymentZmmyK0OUbp2zfujpxRed3HJUZnozoBphAgGYtpKFc"
+          "Ref": "WebsocketsDeploymentP9DlTJ9tRLw26lL4gJJOf6iW1o15V99IefG9b7aGiI"
         }
       }
     },
-    "WebsocketsDeploymentZmmyK0OUbp2zfujpxRed3HJUZnozoBphAgGYtpKFc": {
+    "WebsocketsDeploymentP9DlTJ9tRLw26lL4gJJOf6iW1o15V99IefG9b7aGiI": {
       "Type": "AWS::ApiGatewayV2::Deployment",
       "DependsOn": [
         "SdefaultWebsocketsRoute",
@@ -650,7 +650,7 @@
         "Ref": "ServerlessDeploymentBucket"
       },
       "Export": {
-        "Name": "sls-e-commerce-future-dev-ServerlessDeploymentBucketName"
+        "Name": "sls-e-commerce-future-prod-ServerlessDeploymentBucketName"
       }
     },
     "ServiceEndpoint": {
@@ -671,12 +671,12 @@
             {
               "Ref": "AWS::URLSuffix"
             },
-            "/dev"
+            "/prod"
           ]
         ]
       },
       "Export": {
-        "Name": "sls-e-commerce-future-dev-ServiceEndpoint"
+        "Name": "sls-e-commerce-future-prod-ServiceEndpoint"
       }
     },
     "ServiceEndpointWebsocket": {
@@ -697,12 +697,12 @@
             {
               "Ref": "AWS::URLSuffix"
             },
-            "/dev"
+            "/prod"
           ]
         ]
       },
       "Export": {
-        "Name": "sls-e-commerce-future-dev-ServiceEndpointWebsocket"
+        "Name": "sls-e-commerce-future-prod-ServiceEndpointWebsocket"
       }
     }
   }
