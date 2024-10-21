@@ -35,6 +35,9 @@ const transactionSchema = new Schema({
             price: { type: Number, required: true }
         }
     ],
+    location: {
+        type: String,
+    },
     status: { type: String, required: true, enum: ['pending', 'done'], default: 'pending' },
     timestamp: {
         type: Date,

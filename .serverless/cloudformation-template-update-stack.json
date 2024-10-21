@@ -185,7 +185,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/e-commerce-future/prod/1728655811494-2024-10-11T14:10:11.494Z/e-commerce-future.zip"
+          "S3Key": "serverless/e-commerce-future/prod/1729529043907-2024-10-21T16:44:03.907Z/e-commerce-future.zip"
         },
         "Handler": "index.handler",
         "Runtime": "nodejs18.x",
@@ -235,7 +235,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/e-commerce-future/prod/1728655811494-2024-10-11T14:10:11.494Z/e-commerce-future.zip"
+          "S3Key": "serverless/e-commerce-future/prod/1729529043907-2024-10-21T16:44:03.907Z/e-commerce-future.zip"
         },
         "Handler": "index.dailyOrderReminder",
         "Runtime": "nodejs18.x",
@@ -269,7 +269,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/e-commerce-future/prod/1728655811494-2024-10-11T14:10:11.494Z/e-commerce-future.zip"
+          "S3Key": "serverless/e-commerce-future/prod/1729529043907-2024-10-21T16:44:03.907Z/e-commerce-future.zip"
         },
         "Handler": "index.dailyItemsReminder",
         "Runtime": "nodejs18.x",
@@ -446,7 +446,7 @@
         "MainLambdaPermissionApiGateway"
       ]
     },
-    "ApiGatewayDeployment1728655807785": {
+    "ApiGatewayDeployment1729529040666": {
       "Type": "AWS::ApiGateway::Deployment",
       "Properties": {
         "RestApiId": {

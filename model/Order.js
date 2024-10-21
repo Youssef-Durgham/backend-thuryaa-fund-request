@@ -11,6 +11,7 @@ const orderSchema = new Schema({
     cancelledQuantity: { type: Number, default: 0 },
     deliveryDate: { type: Date }
   }],
+  location: { type: String, required: true },
   status: { type: String, default: 'Pending' },
   workflowStatus: { type: String, default: 'Sales' },
   actions: [{

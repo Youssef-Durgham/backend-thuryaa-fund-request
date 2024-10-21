@@ -262,13 +262,14 @@ router.get('/items/search', checkPermission('Search_Items'), async (req, res) =>
 // Update item by ID
 router.put('/items/:id', checkPermission('Update_Items'), async (req, res) => {
   const { id } = req.params;
-  const { name, mainImageUrl, images, category, subcategory, profitPercentage, UOM, Specification, Brand } = req.body;
+  const { name, productId, mainImageUrl, images, category, subcategory, profitPercentage, UOM, Specification, Brand } = req.body;
 
   try {
     const updatedItem = await Item.findByIdAndUpdate(
       id,
       {
         name,
+        productId,
         mainImageUrl,
         images,
         category,
@@ -278,7 +279,7 @@ router.put('/items/:id', checkPermission('Update_Items'), async (req, res) => {
         Specification,
         Brand
       },
-      { new: true }
+      { new: true, runValidators: true, context: 'query' }
     )
       .populate('category', 'name')
       .populate('subcategory', 'name');
@@ -289,9 +290,14 @@ router.put('/items/:id', checkPermission('Update_Items'), async (req, res) => {
 
     res.status(200).json({ item: updatedItem });
   } catch (error) {
+    // Check for duplicate key error
+    if (error.code === 11000 && error.keyPattern && error.keyPattern.productId) {
+      return res.status(400).json({ error: 'Product ID must be unique.' });
+    }
     res.status(500).json({ error: error.message });
   }
 });
+
 
 // GET items by supplier ID for search in qty screen
 router.get('/items/increase/supplier/:supplierId', checkPermission('Search_Items'), async (req, res) => {

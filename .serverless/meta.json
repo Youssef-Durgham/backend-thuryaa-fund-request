@@ -1,7 +1,7 @@
 {
   "/Volumes/programming_folders/freelancer_projects/ecommerce/backend": {
     "versionSfCore": null,
-    "versionFramework": "4.4.5",
+    "versionFramework": "4.4.6",
     "isWithinCompose": false,
     "isCompose": false,
     "composeOrgName": null,
@@ -216,7 +216,7 @@
                   "S3Bucket": {
                     "Ref": "ServerlessDeploymentBucket"
                   },
-                  "S3Key": "serverless/e-commerce-future/prod/1728655811494-2024-10-11T14:10:11.494Z/e-commerce-future.zip"
+                  "S3Key": "serverless/e-commerce-future/prod/1729529043907-2024-10-21T16:44:03.907Z/e-commerce-future.zip"
                 },
                 "Handler": "index.handler",
                 "Runtime": "nodejs18.x",
@@ -266,7 +266,7 @@
                   "S3Bucket": {
                     "Ref": "ServerlessDeploymentBucket"
                   },
-                  "S3Key": "serverless/e-commerce-future/prod/1728655811494-2024-10-11T14:10:11.494Z/e-commerce-future.zip"
+                  "S3Key": "serverless/e-commerce-future/prod/1729529043907-2024-10-21T16:44:03.907Z/e-commerce-future.zip"
                 },
                 "Handler": "index.dailyOrderReminder",
                 "Runtime": "nodejs18.x",
@@ -300,7 +300,7 @@
                   "S3Bucket": {
                     "Ref": "ServerlessDeploymentBucket"
                   },
-                  "S3Key": "serverless/e-commerce-future/prod/1728655811494-2024-10-11T14:10:11.494Z/e-commerce-future.zip"
+                  "S3Key": "serverless/e-commerce-future/prod/1729529043907-2024-10-21T16:44:03.907Z/e-commerce-future.zip"
                 },
                 "Handler": "index.dailyItemsReminder",
                 "Runtime": "nodejs18.x",
@@ -477,7 +477,7 @@
                 "MainLambdaPermissionApiGateway"
               ]
             },
-            "ApiGatewayDeployment1728655807785": {
+            "ApiGatewayDeployment1729529040666": {
               "Type": "AWS::ApiGateway::Deployment",
               "Properties": {
                 "RestApiId": {
@@ -952,7 +952,7 @@
     },
     "error": null,
     "params": {},
-    "machineId": "b6a7371070984759d64f5cb7433756a6",
+    "machineId": "d1d75f1b0c25ce585e89312aa838f547",
     "stage": "prod",
     "accessKeyV2": "<REDACTED>",
     "accessKeyV1": "<REDACTED>",
@@ -975,13 +975,13 @@
     "serviceProviderAwsCredentials": "<REDACTED>",
     "serviceProviderAwsAccountId": "689316488695",
     "projectType": "traditional",
-    "versionSf": "4.4.5",
+    "versionSf": "4.4.6",
     "serviceProviderAwsCfStackName": "e-commerce-future-prod",
     "integrations": {},
     "serviceUniqueId": "arn:aws:cloudformation:me-south-1:689316488695:stack/e-commerce-future-prod/f3b3bae0-6b51-11ef-afce-062d902452df",
     "serviceProviderAwsCfStackId": "arn:aws:cloudformation:me-south-1:689316488695:stack/e-commerce-future-prod/f3b3bae0-6b51-11ef-afce-062d902452df",
     "serviceProviderAwsCfStackCreated": "2024-09-05T06:41:59.760Z",
-    "serviceProviderAwsCfStackUpdated": "2024-10-11T14:10:33.967Z",
+    "serviceProviderAwsCfStackUpdated": "2024-10-21T16:44:23.892Z",
     "serviceProviderAwsCfStackStatus": "UPDATE_COMPLETE",
     "serviceProviderAwsCfStackOutputs": [
       {

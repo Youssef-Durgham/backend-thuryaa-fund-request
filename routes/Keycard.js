@@ -33,7 +33,7 @@ const authMiddleware = async (req, res, next) => {
 };
 
 router.post('/create-transaction', authMiddleware, async (req, res) => {
-    const { amount, currency, orderId } = req.body;
+    const { amount, currency, orderId, location } = req.body;
     const callbackUrlScheme = 'mustaqbalalemar';
 
     const data = {
@@ -45,7 +45,8 @@ router.post('/create-transaction', authMiddleware, async (req, res) => {
         "timestamp": new Date().toISOString(),
         "successUrl": `${callbackUrlScheme}://payment-success?orderId=${orderId}`,
         "failureUrl": `${callbackUrlScheme}://payment-failure?orderId=${orderId}`,
-        "cancelUrl": `${callbackUrlScheme}://payment-cancel?orderId=${orderId}`
+        "cancelUrl": `${callbackUrlScheme}://payment-cancel?orderId=${orderId}`,
+        "webhookUrl": "https://2d23ze1vch.execute-api.me-south-1.amazonaws.com/prod/Keycard/payment-webhook"
     };
 
     const config = {
@@ -116,6 +117,7 @@ router.post('/create-transaction', authMiddleware, async (req, res) => {
             customerId: req.customer._id,
             amount,
             currency,
+            location,
             transactionId: response.data.data.transactionId,
             token: response.data.data.token,
             link: response.data.data.link,
@@ -205,10 +207,113 @@ router.get('/transaction/:orderId', authMiddleware, async (req, res) => {
 
         const response = await axios(config);
 
-        const { QIGatewayResponse } = response.data.data;
+        // const { QIGatewayResponse } = response.data.data;
 
-        if (QIGatewayResponse === "SUCCESS") {
-            // Start a session for transaction
+        // if (QIGatewayResponse === "SUCCESS") {
+        //     // Start a session for transaction
+        //     const session = await mongoose.startSession();
+        //     session.startTransaction();
+
+        //     try {
+        //         transaction.status = 'done';
+        //         await transaction.save({ session });
+
+        //         const items = transaction.clonedCartItems;
+
+        //         // Check item quantities
+        //         for (const orderItem of items) {
+        //             const item = await Item.findById(orderItem.productId).session(session);
+        //             if (!item) {
+        //                 await session.abortTransaction();
+        //                 session.endSession();
+        //                 return res.status(404).json({ message: `Item not found: ${orderItem.productId}` });
+        //             }
+        //             const availableQuantity = Number(item.totalQuantity) - Number(item.reservedQuantity);
+        //             if (availableQuantity < Number(orderItem.quantity)) {
+        //                 await session.abortTransaction();
+        //                 session.endSession();
+        //                 return res.status(420).json({ message: `Not enough quantity for item: ${item.name}` });
+        //             }
+        //             item.reservedQuantity = Number(item.reservedQuantity) + Number(orderItem.quantity); // Convert to numbers before addition
+        //             await item.save({ session });
+        //         }
+
+        //         // Get next order ID
+        //         const newOrderId = await getNextOrderId(session);
+
+        //         // Create order
+        //         const order = new Order({
+        //             orderId: newOrderId,
+        //             customer: req.customer._id,
+        //             items: items.map(orderItem => ({
+        //                 item: orderItem.productId,
+        //                 quantity: orderItem.quantity
+        //             })),
+        //             location: transaction.location,
+        //             workflowStatus: 'MaterialManagement',
+        //             status: 'Posted',
+        //             actions: [{ action: 'Order Created', user: req.customer._id, userType: 'Customer' }]
+        //         });
+
+        //         await order.save({ session });
+
+        //         // Empty the cart after saving the transaction and creating the order
+        //         const cart = await Cart.findOne({ customer: req.customer._id }).session(session);
+        //         if (cart) {
+        //             cart.items = [];
+        //             await cart.save({ session });
+        //         }
+
+        //         // Fetch customer details to get the phone number
+        //         const customer = await Customer.findById(req.customer._id);
+
+        //         // Generate the order invoice message
+        //         const message = generateOrderInvoiceMessage(order);
+
+        //         // Send WhatsApp message
+        //         await sendWhatsAppMessage(customer.phone, message);
+
+        //         await session.commitTransaction();
+        //         session.endSession();
+
+        //         res.json(response.data);
+        //     } catch (error) {
+        //         await session.abortTransaction();
+        //         session.endSession();
+
+        //         console.log('Order creation error:', error.message);
+        //         return res.status(500).json({ message: 'Internal server error', error: error.message });
+        //     }
+        // } else {
+            res.json(response.data);
+        // }
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+
+// نقطة نهاية Webhook
+router.post('/payment-webhook', async (req, res) => {
+    try {
+        // تحليل البيانات المرسلة من بوابة الدفع
+        const { orderId, transactionId, status } = req.body;
+        console.log(req.body)
+
+        const transaction = await Transaction.findOne({ orderId, transactionId }).populate('clonedCartItems.productId');
+console.log(transaction)
+        if (!transaction) {
+            return res.status(404).json({ message: 'لم يتم العثور على المعاملة.' });
+        }
+
+        // تحقق إذا كانت المعاملة قد تمت بالفعل
+        if (transaction.status === 'done') {
+            return res.status(200).send('تمت معالجة المعاملة بالفعل.');
+        }
+
+        if (status === "SUCCESS") {
+            // بدء جلسة للمعاملة
             const session = await mongoose.startSession();
             session.startTransaction();
 
@@ -218,75 +323,75 @@ router.get('/transaction/:orderId', authMiddleware, async (req, res) => {
 
                 const items = transaction.clonedCartItems;
 
-                // Check item quantities
+                // التحقق من كميات العناصر
                 for (const orderItem of items) {
                     const item = await Item.findById(orderItem.productId).session(session);
                     if (!item) {
-                        await session.abortTransaction();
-                        session.endSession();
-                        return res.status(404).json({ message: `Item not found: ${orderItem.productId}` });
+                        throw new Error(`العنصر غير موجود: ${orderItem.productId}`);
                     }
                     const availableQuantity = Number(item.totalQuantity) - Number(item.reservedQuantity);
                     if (availableQuantity < Number(orderItem.quantity)) {
-                        await session.abortTransaction();
-                        session.endSession();
-                        return res.status(420).json({ message: `Not enough quantity for item: ${item.name}` });
+                        throw new Error(`لا توجد كمية كافية للعنصر: ${item.name}`);
                     }
-                    item.reservedQuantity = Number(item.reservedQuantity) + Number(orderItem.quantity); // Convert to numbers before addition
+                    item.reservedQuantity = Number(item.reservedQuantity) + Number(orderItem.quantity);
                     await item.save({ session });
                 }
 
-                // Get next order ID
+                // الحصول على رقم الطلب التالي
                 const newOrderId = await getNextOrderId(session);
 
-                // Create order
+                // إنشاء الطلب
                 const order = new Order({
                     orderId: newOrderId,
-                    customer: req.customer._id,
+                    customer: transaction.customerId,
                     items: items.map(orderItem => ({
                         item: orderItem.productId,
                         quantity: orderItem.quantity
                     })),
+                    location: transaction.location,
                     workflowStatus: 'MaterialManagement',
                     status: 'Posted',
-                    actions: [{ action: 'Order Created', user: req.customer._id, userType: 'Customer' }]
+                    actions: [{ action: 'Order Created', user: transaction.customerId, userType: 'Customer' }]
                 });
 
                 await order.save({ session });
 
-                // Empty the cart after saving the transaction and creating the order
-                const cart = await Cart.findOne({ customer: req.customer._id }).session(session);
+                // إفراغ سلة التسوق
+                const cart = await Cart.findOne({ customer: transaction.customerId }).session(session);
                 if (cart) {
                     cart.items = [];
                     await cart.save({ session });
                 }
 
-                // Fetch customer details to get the phone number
-                const customer = await Customer.findById(req.customer._id);
+                // الحصول على تفاصيل العميل لإرسال رسالة WhatsApp
+                const customer = await Customer.findById(transaction.customerId);
 
-                // Generate the order invoice message
+                // إنشاء رسالة الفاتورة
                 const message = generateOrderInvoiceMessage(order);
 
-                // Send WhatsApp message
+                // إرسال رسالة WhatsApp
                 await sendWhatsAppMessage(customer.phone, message);
 
                 await session.commitTransaction();
                 session.endSession();
 
-                res.json(response.data);
+                res.status(200).send('تمت معالجة Webhook بنجاح.');
             } catch (error) {
                 await session.abortTransaction();
                 session.endSession();
 
-                console.log('Order creation error:', error.message);
-                return res.status(500).json({ message: 'Internal server error', error: error.message });
+                console.log('خطأ في معالجة Webhook:', error.message);
+                res.status(500).send('خطأ في معالجة Webhook.');
             }
         } else {
-            res.json(response.data);
+            // التعامل مع الحالات الأخرى إذا لزم الأمر
+            transaction.status = status.toLowerCase();
+            await transaction.save();
+            res.status(200).send('تمت معالجة Webhook بالحالة: ' + status);
         }
     } catch (error) {
         console.log(error);
-        return res.status(500).json({ error: error.message });
+        res.status(500).send('خطأ في معالجة Webhook.');
     }
 });
 
