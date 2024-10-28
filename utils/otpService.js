@@ -37,6 +37,7 @@ const sendOtpViaSms = async (phone, otp) => {
     
     if (response.status === 200) {
       console.log('SMS sent successfully');
+      return 'sms';
     } else {
       throw new Error(`SMS sending failed: Unexpected status ${response.status}`);
     }
@@ -46,12 +47,14 @@ const sendOtpViaSms = async (phone, otp) => {
     try {
       await sendOtpViaWhatsApp(phone, otp);
       console.log('OTP sent successfully via WhatsApp after SMS failure');
+      return 'whatsapp';
     } catch (whatsappError) {
       console.error('Failed to send OTP via both SMS and WhatsApp');
       throw whatsappError;
     }
   }
 };
+
 
 module.exports = {
   sendOtpViaSms,

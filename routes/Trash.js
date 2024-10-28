@@ -66,12 +66,13 @@ router.get('/trash', checkPermission('Show_Trash'), async (req, res) => {
 
 // Transfer specified quantity from trash to item and update storage
 router.post('/trash/transfer', checkPermission('Transfer_Trash'), async (req, res) => {
-    try {
-      const { trashId, storageId, adminId, quantity } = req.body;
-  
-      if (!trashId || !storageId || !adminId || !quantity) {
-        return res.status(400).json({ message: 'Trash ID, Storage ID, Admin ID, and Quantity are required' });
-      }
+  try {
+    const { trashId, storageId, quantity } = req.body;
+    const adminId = req.adminId; // Get adminId from the authenticated request
+
+    if (!trashId || !storageId || !adminId || !quantity) {
+      return res.status(400).json({ message: 'Trash ID, Storage ID, Admin ID, and Quantity are required' });
+    }
   
       const trashItem = await Trash.findById(trashId).populate('item');
       const storage = await Storage.findById(storageId);

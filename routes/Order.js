@@ -643,6 +643,14 @@ router.post('/activate-order-casher/:id', checkPermission('activate_order_casher
 
   try {
     const { id } = req.params;
+
+    // Find the admin by req.adminId
+    const admin = await Admin.findById(req.adminId);
+    if (!admin) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
     const order = await Order.findById(id).populate('items.item').session(session);
     if (!order) {
       await session.abortTransaction();
@@ -693,34 +701,34 @@ router.post('/activate-order-casher/:id', checkPermission('activate_order_casher
     await order.save({ session });
 
     // Update cashbox
- // Find or create the admin's box
- let adminBox = await Box.findOne({ owner: req.adminId, type: 'admin' }).session(session);
- if (!adminBox) {
-   adminBox = new Box({
-     name: `${req.adminName}'s Box`,
-     description: 'Personal admin box',
-     type: 'admin',
-     createdBy: req.adminId,
-     owner: req.adminId,
-     balance: 0
-   });
-   await adminBox.save({ session });
- }
+    // Find or create the admin's box
+    let adminBox = await Box.findOne({ owner: req.adminId, type: 'admin' }).session(session);
+    if (!adminBox) {
+      adminBox = new Box({
+        name: `${admin.name}'s Box`, // Use admin.name from the fetched Admin
+        description: 'Personal admin box',
+        type: 'admin',
+        createdBy: req.adminId,
+        owner: req.adminId,
+        balance: 0
+      });
+      await adminBox.save({ session });
+    }
 
-  // Update admin's box balance
-  adminBox.balance += totalOrderPrice;
-  await adminBox.save({ session });
+    // Update admin's box balance
+    adminBox.balance += totalOrderPrice;
+    await adminBox.save({ session });
 
-  // Create a TransBox record for this transaction
-  const transBox = new TransBox({
-    fromBox: null, // No source box for this transaction
-    toBox: adminBox._id,
-    amount: totalOrderPrice,
-    performedBy: req.adminId,
-    description: `Order ${order._id} posted`,
-    type: 'deposit'
-  });
-  await transBox.save({ session });
+    // Create a TransBox record for this transaction
+    const transBox = new TransBox({
+      fromBox: null, // No source box for this transaction
+      toBox: adminBox._id,
+      amount: totalOrderPrice,
+      performedBy: req.adminId,
+      description: `Order ${order._id} posted`,
+      type: 'deposit'
+    });
+    await transBox.save({ session });
 
     await session.commitTransaction();
 
@@ -733,6 +741,7 @@ router.post('/activate-order-casher/:id', checkPermission('activate_order_casher
     session.endSession();
   }
 });
+
 
 // Reject order by casher
 router.post('/reject-order-casher/:id', checkPermission('reject_order_casher'), async (req, res) => {

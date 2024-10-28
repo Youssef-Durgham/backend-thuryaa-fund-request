@@ -25,65 +25,60 @@ const generateOtp = () => Math.floor(1000 + Math.random() * 9000).toString();
 
 const otpExpiryTime = 10 * 60 * 1000; // 10 minutes
 
-// Function to handle OTP sending logic
+// Function to handle OTP sending logic and return the method used
 const sendOtp = async (phone, otp) => {
-  if (phone.startsWith('96477')) {
-    await sendOtpViaWhatsApp(phone, otp);
-  } else if (phone.startsWith('964077')) {
-    const modifiedPhone = '964' + phone.slice(4);
-    await sendOtpViaWhatsApp(modifiedPhone, otp);
+  if (phone.startsWith('96477') || phone.startsWith('964078')) {
+    const modifiedPhone = phone.startsWith('964078') ? '964' + phone.slice(4) : phone;
+    const methodUsed = await sendOtpViaSms(modifiedPhone, otp);
+    return methodUsed;
   } else if (phone.startsWith('96478')) {
-    await sendOtpViaSms(phone, otp);
-  } else if (phone.startsWith('964078')) {
-    const modifiedPhone = '964' + phone.slice(4);
-    await sendOtpViaSms(modifiedPhone, otp);
+    const methodUsed = await sendOtpViaSms(phone, otp);
+    return methodUsed;
   } else {
-    console.log(phone, "error")
+    console.log(phone, "error");
     throw new Error('Invalid phone number format');
   }
 };
 
+
+
+// Register customer and send OTP
 // Register customer and send OTP
 router.post('/register', async (req, res) => {
   const { phone, name, password, location } = req.body;
-  console.log(req.body);
 
   // Normalize the phone number
   let formattedPhone = phone;
- // If doesn't start with 964, add it
- if (!formattedPhone.startsWith('964')) {
-  formattedPhone = '964' + formattedPhone;
-}
-
-// If there's no 0 after 964, add it
-if (formattedPhone.startsWith('964') && formattedPhone.charAt(3) !== '0') {
-  formattedPhone = formattedPhone.slice(0, 3) + '0' + formattedPhone.slice(3);
-}
-  console.log(formattedPhone);
+  if (!formattedPhone.startsWith('964')) {
+    formattedPhone = '964' + formattedPhone;
+  }
+  if (formattedPhone.startsWith('964') && formattedPhone.charAt(3) !== '0') {
+    formattedPhone = formattedPhone.slice(0, 3) + '0' + formattedPhone.slice(3);
+  }
 
   try {
     let customer = await Customer.findOne({ phone: formattedPhone });
-    console.log(customer);
     const otp = generateOtp();
 
     if (customer) {
       if (!customer.isActivated) {
-        // Update customer data
+        // Update existing customer data
         customer.name = name;
         customer.password = password;
         customer.location = location;
         customer.otp = otp;
         customer.otpExpiresAt = Date.now() + otpExpiryTime;
         await customer.save();
-        
-        await sendOtp(formattedPhone, otp);
 
-        return res.status(200).json({ message: 'Customer data updated, OTP sent' });
+        // Send OTP and capture the method used (sms or whatsapp)
+        const methodUsed = await sendOtp(formattedPhone, otp);
+
+        return res.status(200).json({ message: 'Customer data updated, OTP sent', method: methodUsed });
       } else {
         return res.status(400).json({ message: 'Customer already exists' });
       }
     } else {
-      // If customer does not exist, create a new one
+      // Create a new customer if none exists
       customer = new Customer({
         phone: formattedPhone,
         name,
@@ -93,16 +88,18 @@ if (formattedPhone.startsWith('964') && formattedPhone.charAt(3) !== '0') {
         otpExpiresAt: Date.now() + otpExpiryTime
       });
       await customer.save();
-      
-      await sendOtp(formattedPhone, otp);
 
-      res.status(201).json({ message: 'Customer registered successfully, OTP sent' });
+      // Send OTP and capture the method used (sms or whatsapp)
+      const methodUsed = await sendOtp(formattedPhone, otp);
+
+      res.status(201).json({ message: 'Customer registered successfully, OTP sent', method: methodUsed });
     }
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: 'Server error', error });
   }
 });
+
 
 // Verify OTP for activation
 router.post('/verify-otp', async (req, res) => {
@@ -192,15 +189,13 @@ router.post('/reset-password', async (req, res) => {
 
   // Normalize the phone number
   let formattedPhone = phone;
- // If doesn't start with 964, add it
- if (!formattedPhone.startsWith('964')) {
-  formattedPhone = '964' + formattedPhone;
-}
-
-// If there's no 0 after 964, add it
-if (formattedPhone.startsWith('964') && formattedPhone.charAt(3) !== '0') {
-  formattedPhone = formattedPhone.slice(0, 3) + '0' + formattedPhone.slice(3);
-}
+  if (!formattedPhone.startsWith('964')) {
+    formattedPhone = '964' + formattedPhone;
+  }
+  if (formattedPhone.startsWith('964') && formattedPhone.charAt(3) !== '0') {
+    formattedPhone = formattedPhone.slice(0, 3) + '0' + formattedPhone.slice(3);
+  }
+  
   console.log(formattedPhone);
   let customer;
 
@@ -212,8 +207,6 @@ if (formattedPhone.startsWith('964') && formattedPhone.charAt(3) !== '0') {
     }
 
     if (!customer && formattedPhone) {
-      // Normalize the phone number
-
       customer = await Customer.findOne({ phone: formattedPhone });
     }
 
@@ -226,14 +219,16 @@ if (formattedPhone.startsWith('964') && formattedPhone.charAt(3) !== '0') {
     customer.otpExpiresAt = Date.now() + otpExpiryTime;
     await customer.save();
 
-    await sendOtp(customer.phone, otp);
+    // Send OTP and capture the method used
+    const methodUsed = await sendOtp(customer.phone, otp);
 
-    res.status(200).json({ message: 'OTP sent for password reset' });
+    res.status(200).json({ message: 'OTP sent for password reset', method: methodUsed });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: 'Server error', error });
   }
 });
+
 
 // Verify OTP for password reset and set new password
 router.post('/verify-otp-reset-password', async (req, res) => {
