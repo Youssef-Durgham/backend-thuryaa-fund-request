@@ -28,7 +28,14 @@ customerSchema.pre('save', async function (next) {
     roles: [{ type: Schema.Types.ObjectId, ref: 'Role' }],
     forcePasswordChange: { type: Boolean, default: false },
     oldPassword: { type: String },
-    email:{ type: String }
+    email: { type: String },
+    entityRoles: [{
+      entity: { type: Schema.Types.ObjectId, ref: 'Entity', required: true },
+      roles: [{ type: Schema.Types.ObjectId, ref: 'Role' }]
+    }],
+    entities: [{ type: Schema.Types.ObjectId, ref: 'Entity' }],
+    currentEntity: { type: Schema.Types.ObjectId, ref: 'Entity' },
+    type: { type: String, enum: ['Admin', 'System'], default: 'Admin' }, // New field
   });
   
   // Hash password before saving

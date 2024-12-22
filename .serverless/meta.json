@@ -1,25 +1,617 @@
 {
-  "/Volumes/programming_folders/freelancer_projects/ecommerce/backend": {
+  "/Volumes/programming_folders/redia_projects/wf po/backend": {
     "versionSfCore": null,
-    "versionFramework": "4.4.7",
+    "versionFramework": "4.4.18",
     "isWithinCompose": false,
     "isCompose": false,
     "composeOrgName": null,
     "composeResolverProviders": {
-      "default-aws-credential-resolver": "<REDACTED>"
+      "default-aws-credential-resolver": "<REDACTED>",
+      "sls": {
+        "instance": {
+          "credentials": "<REDACTED>",
+          "serviceConfigFile": {
+            "service": "po",
+            "provider": {
+              "name": "aws",
+              "versionFunctions": false,
+              "runtime": "nodejs18.x",
+              "region": "me-south-1",
+              "memorySize": 3008,
+              "timeout": 300,
+              "apiGateway": {
+                "binaryMediaTypes": [
+                  "*/*"
+                ]
+              },
+              "httpApi": {
+                "cors": true
+              },
+              "stage": "dev",
+              "compiledCloudFormationTemplate": {
+                "AWSTemplateFormatVersion": "2010-09-09",
+                "Description": "The AWS CloudFormation template for this Serverless application",
+                "Resources": {
+                  "MainLogGroup": {
+                    "Type": "AWS::Logs::LogGroup",
+                    "Properties": {
+                      "LogGroupName": "/aws/lambda/po-dev-main"
+                    }
+                  },
+                  "IamRoleLambdaExecution": {
+                    "Type": "AWS::IAM::Role",
+                    "Properties": {
+                      "AssumeRolePolicyDocument": {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                          {
+                            "Effect": "Allow",
+                            "Principal": {
+                              "Service": [
+                                "lambda.amazonaws.com"
+                              ]
+                            },
+                            "Action": [
+                              "sts:AssumeRole"
+                            ]
+                          }
+                        ]
+                      },
+                      "Policies": [
+                        {
+                          "PolicyName": {
+                            "Fn::Join": [
+                              "-",
+                              [
+                                "po",
+                                "dev",
+                                "lambda"
+                              ]
+                            ]
+                          },
+                          "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                              {
+                                "Effect": "Allow",
+                                "Action": [
+                                  "logs:CreateLogStream",
+                                  "logs:CreateLogGroup",
+                                  "logs:TagResource"
+                                ],
+                                "Resource": [
+                                  {
+                                    "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/po-dev*:*"
+                                  }
+                                ]
+                              },
+                              {
+                                "Effect": "Allow",
+                                "Action": [
+                                  "logs:PutLogEvents"
+                                ],
+                                "Resource": [
+                                  {
+                                    "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/po-dev*:*:*"
+                                  }
+                                ]
+                              },
+                              {
+                                "Effect": "Allow",
+                                "Action": [
+                                  "execute-api:ManageConnections"
+                                ],
+                                "Resource": [
+                                  {
+                                    "Fn::Sub": "arn:${AWS::Partition}:execute-api:*:*:*/@connections/*"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      ],
+                      "Path": "/",
+                      "RoleName": {
+                        "Fn::Join": [
+                          "-",
+                          [
+                            "po",
+                            "dev",
+                            {
+                              "Ref": "AWS::Region"
+                            },
+                            "lambdaRole"
+                          ]
+                        ]
+                      }
+                    }
+                  },
+                  "MainLambdaFunction": {
+                    "Type": "AWS::Lambda::Function",
+                    "Properties": {
+                      "Code": {
+                        "S3Bucket": "serverless-framework-deployments-me-south-1-de4ae50a-c18d",
+                        "S3Key": "serverless/po/dev/1734857264270-2024-12-22T08:47:44.270Z/po.zip"
+                      },
+                      "Handler": "index.handler",
+                      "Runtime": "nodejs18.x",
+                      "FunctionName": "po-dev-main",
+                      "MemorySize": 3008,
+                      "Timeout": 300,
+                      "Environment": {
+                        "Variables": {
+                          "MONGO_URL": "mongodb+srv://yusif:yusif123@cluster0.y4yjo.mongodb.net/?retryWrites=true&w=majority",
+                          "TOKEN_SECRET": "<REDACTED>",
+                          "ADMIN_SECRET_KEY": "<REDACTED>",
+                          "JWT_SECRET": "<REDACTED>",
+                          "TWILIO_ACCOUNT_SID": "AC910896cde4bfb662ca9fe076b02536e7",
+                          "TWILIO_AUTH_TOKEN": "<REDACTED>",
+                          "TWILIO_PHONE_NUMBER": "+13466666692",
+                          "TWILIO_WHATSAPP_PHONE": "+14155238886",
+                          "EMAIL_USERNAME": "yusifdhrgamtrt@gmail.com",
+                          "EMAIL_PASSWORD": "<REDACTED>",
+                          "ACCESS_KEY": "<REDACTED>",
+                          "SECRET_ACCESS_KEY": "<REDACTED>",
+                          "AWS_NAME": "codellab",
+                          "FB_GRAPH_API_TOKEN": "<REDACTED>",
+                          "VIBER_AUTH_TOKEN": "<REDACTED>",
+                          "TELEGRAM_BOT_TOKEN": "<REDACTED>",
+                          "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
+                          "ULTRAMSG_TOKEN": "<REDACTED>",
+                          "EMAIL_USER": "info@spc-it.com.iq",
+                          "EMAIL_PASS": "AltShiftDel123",
+                          "PM2_HOME": "~/.pm2"
+                        }
+                      },
+                      "Role": {
+                        "Fn::GetAtt": [
+                          "IamRoleLambdaExecution",
+                          "Arn"
+                        ]
+                      }
+                    },
+                    "DependsOn": [
+                      "MainLogGroup"
+                    ]
+                  },
+                  "ApiGatewayRestApi": {
+                    "Type": "AWS::ApiGateway::RestApi",
+                    "Properties": {
+                      "Name": "dev-po",
+                      "BinaryMediaTypes": [
+                        "*/*"
+                      ],
+                      "EndpointConfiguration": {
+                        "Types": [
+                          "EDGE"
+                        ]
+                      },
+                      "Policy": ""
+                    }
+                  },
+                  "ApiGatewayResourceProxyVar": {
+                    "Type": "AWS::ApiGateway::Resource",
+                    "Properties": {
+                      "ParentId": {
+                        "Fn::GetAtt": [
+                          "ApiGatewayRestApi",
+                          "RootResourceId"
+                        ]
+                      },
+                      "PathPart": "{proxy+}",
+                      "RestApiId": {
+                        "Ref": "ApiGatewayRestApi"
+                      }
+                    }
+                  },
+                  "ApiGatewayMethodProxyVarAny": {
+                    "Type": "AWS::ApiGateway::Method",
+                    "Properties": {
+                      "HttpMethod": "ANY",
+                      "RequestParameters": {},
+                      "ResourceId": {
+                        "Ref": "ApiGatewayResourceProxyVar"
+                      },
+                      "RestApiId": {
+                        "Ref": "ApiGatewayRestApi"
+                      },
+                      "ApiKeyRequired": "<REDACTED>",
+                      "AuthorizationType": "NONE",
+                      "Integration": {
+                        "IntegrationHttpMethod": "POST",
+                        "Type": "AWS_PROXY",
+                        "Uri": {
+                          "Fn::Join": [
+                            "",
+                            [
+                              "arn:",
+                              {
+                                "Ref": "AWS::Partition"
+                              },
+                              ":apigateway:",
+                              {
+                                "Ref": "AWS::Region"
+                              },
+                              ":lambda:path/2015-03-31/functions/",
+                              {
+                                "Fn::GetAtt": [
+                                  "MainLambdaFunction",
+                                  "Arn"
+                                ]
+                              },
+                              "/invocations"
+                            ]
+                          ]
+                        }
+                      },
+                      "MethodResponses": []
+                    },
+                    "DependsOn": [
+                      "MainLambdaPermissionApiGateway"
+                    ]
+                  },
+                  "ApiGatewayDeployment1734857252474": {
+                    "Type": "AWS::ApiGateway::Deployment",
+                    "Properties": {
+                      "RestApiId": {
+                        "Ref": "ApiGatewayRestApi"
+                      },
+                      "StageName": "dev"
+                    },
+                    "DependsOn": [
+                      "ApiGatewayMethodProxyVarAny"
+                    ]
+                  },
+                  "MainLambdaPermissionApiGateway": {
+                    "Type": "AWS::Lambda::Permission",
+                    "Properties": {
+                      "FunctionName": {
+                        "Fn::GetAtt": [
+                          "MainLambdaFunction",
+                          "Arn"
+                        ]
+                      },
+                      "Action": "lambda:InvokeFunction",
+                      "Principal": "apigateway.amazonaws.com",
+                      "SourceArn": {
+                        "Fn::Join": [
+                          "",
+                          [
+                            "arn:",
+                            {
+                              "Ref": "AWS::Partition"
+                            },
+                            ":execute-api:",
+                            {
+                              "Ref": "AWS::Region"
+                            },
+                            ":",
+                            {
+                              "Ref": "AWS::AccountId"
+                            },
+                            ":",
+                            {
+                              "Ref": "ApiGatewayRestApi"
+                            },
+                            "/*/*"
+                          ]
+                        ]
+                      }
+                    }
+                  },
+                  "WebsocketsApi": {
+                    "Type": "AWS::ApiGatewayV2::Api",
+                    "Properties": {
+                      "Name": "dev-po-websockets",
+                      "RouteSelectionExpression": "$request.body.action",
+                      "Description": "Serverless Websockets",
+                      "ProtocolType": "WEBSOCKET"
+                    }
+                  },
+                  "MainWebsocketsIntegration": {
+                    "Type": "AWS::ApiGatewayV2::Integration",
+                    "Properties": {
+                      "ApiId": {
+                        "Ref": "WebsocketsApi"
+                      },
+                      "IntegrationType": "AWS_PROXY",
+                      "IntegrationUri": {
+                        "Fn::Join": [
+                          "",
+                          [
+                            "arn:",
+                            {
+                              "Ref": "AWS::Partition"
+                            },
+                            ":apigateway:",
+                            {
+                              "Ref": "AWS::Region"
+                            },
+                            ":lambda:path/2015-03-31/functions/",
+                            {
+                              "Fn::GetAtt": [
+                                "MainLambdaFunction",
+                                "Arn"
+                              ]
+                            },
+                            "/invocations"
+                          ]
+                        ]
+                      }
+                    }
+                  },
+                  "MainLambdaPermissionWebsockets": {
+                    "Type": "AWS::Lambda::Permission",
+                    "DependsOn": [
+                      "WebsocketsApi",
+                      "MainLambdaFunction"
+                    ],
+                    "Properties": {
+                      "FunctionName": {
+                        "Fn::GetAtt": [
+                          "MainLambdaFunction",
+                          "Arn"
+                        ]
+                      },
+                      "Action": "lambda:InvokeFunction",
+                      "Principal": "apigateway.amazonaws.com"
+                    }
+                  },
+                  "SdefaultWebsocketsRoute": {
+                    "Type": "AWS::ApiGatewayV2::Route",
+                    "Properties": {
+                      "ApiId": {
+                        "Ref": "WebsocketsApi"
+                      },
+                      "RouteKey": "$default",
+                      "AuthorizationType": "NONE",
+                      "Target": {
+                        "Fn::Join": [
+                          "/",
+                          [
+                            "integrations",
+                            {
+                              "Ref": "MainWebsocketsIntegration"
+                            }
+                          ]
+                        ]
+                      }
+                    }
+                  },
+                  "SconnectWebsocketsRoute": {
+                    "Type": "AWS::ApiGatewayV2::Route",
+                    "Properties": {
+                      "ApiId": {
+                        "Ref": "WebsocketsApi"
+                      },
+                      "RouteKey": "$connect",
+                      "AuthorizationType": "NONE",
+                      "Target": {
+                        "Fn::Join": [
+                          "/",
+                          [
+                            "integrations",
+                            {
+                              "Ref": "MainWebsocketsIntegration"
+                            }
+                          ]
+                        ]
+                      }
+                    }
+                  },
+                  "SdisconnectWebsocketsRoute": {
+                    "Type": "AWS::ApiGatewayV2::Route",
+                    "Properties": {
+                      "ApiId": {
+                        "Ref": "WebsocketsApi"
+                      },
+                      "RouteKey": "$disconnect",
+                      "AuthorizationType": "NONE",
+                      "Target": {
+                        "Fn::Join": [
+                          "/",
+                          [
+                            "integrations",
+                            {
+                              "Ref": "MainWebsocketsIntegration"
+                            }
+                          ]
+                        ]
+                      }
+                    }
+                  },
+                  "WebsocketsDeploymentStage": {
+                    "Type": "AWS::ApiGatewayV2::Stage",
+                    "Properties": {
+                      "ApiId": {
+                        "Ref": "WebsocketsApi"
+                      },
+                      "StageName": "dev",
+                      "Description": "Serverless Websockets",
+                      "DeploymentId": {
+                        "Ref": "WebsocketsDeploymentKINrhckIiakS8Io73076QfdCEfYBAlVHMiv5qCS6l78"
+                      }
+                    }
+                  },
+                  "WebsocketsDeploymentKINrhckIiakS8Io73076QfdCEfYBAlVHMiv5qCS6l78": {
+                    "Type": "AWS::ApiGatewayV2::Deployment",
+                    "DependsOn": [
+                      "SdefaultWebsocketsRoute",
+                      "SconnectWebsocketsRoute",
+                      "SdisconnectWebsocketsRoute"
+                    ],
+                    "Properties": {
+                      "ApiId": {
+                        "Ref": "WebsocketsApi"
+                      },
+                      "Description": "Serverless Websockets"
+                    }
+                  }
+                },
+                "Outputs": {
+                  "ServerlessDeploymentBucketName": {
+                    "Value": "serverless-framework-deployments-me-south-1-de4ae50a-c18d",
+                    "Export": {
+                      "Name": "sls-po-dev-ServerlessDeploymentBucketName"
+                    }
+                  },
+                  "ServiceEndpoint": {
+                    "Description": "URL of the service endpoint",
+                    "Value": {
+                      "Fn::Join": [
+                        "",
+                        [
+                          "https://",
+                          {
+                            "Ref": "ApiGatewayRestApi"
+                          },
+                          ".execute-api.",
+                          {
+                            "Ref": "AWS::Region"
+                          },
+                          ".",
+                          {
+                            "Ref": "AWS::URLSuffix"
+                          },
+                          "/dev"
+                        ]
+                      ]
+                    },
+                    "Export": {
+                      "Name": "sls-po-dev-ServiceEndpoint"
+                    }
+                  },
+                  "ServiceEndpointWebsocket": {
+                    "Description": "URL of the service endpoint",
+                    "Value": {
+                      "Fn::Join": [
+                        "",
+                        [
+                          "wss://",
+                          {
+                            "Ref": "WebsocketsApi"
+                          },
+                          ".execute-api.",
+                          {
+                            "Ref": "AWS::Region"
+                          },
+                          ".",
+                          {
+                            "Ref": "AWS::URLSuffix"
+                          },
+                          "/dev"
+                        ]
+                      ]
+                    },
+                    "Export": {
+                      "Name": "sls-po-dev-ServiceEndpointWebsocket"
+                    }
+                  }
+                }
+              },
+              "vpc": {}
+            },
+            "custom": {
+              "esbuild": {
+                "external": [
+                  "sharp"
+                ]
+              },
+              "packagerOptions": {
+                "scripts": [
+                  "npm install --arch=x64 --platform=linux sharp"
+                ]
+              }
+            },
+            "functions": {
+              "main": {
+                "handler": "index.handler",
+                "environment": {
+                  "MONGO_URL": "mongodb+srv://yusif:yusif123@cluster0.y4yjo.mongodb.net/?retryWrites=true&w=majority",
+                  "TOKEN_SECRET": "<REDACTED>",
+                  "ADMIN_SECRET_KEY": "<REDACTED>",
+                  "JWT_SECRET": "<REDACTED>",
+                  "TWILIO_ACCOUNT_SID": "AC910896cde4bfb662ca9fe076b02536e7",
+                  "TWILIO_AUTH_TOKEN": "<REDACTED>",
+                  "TWILIO_PHONE_NUMBER": "+13466666692",
+                  "TWILIO_WHATSAPP_PHONE": "+14155238886",
+                  "EMAIL_USERNAME": "yusifdhrgamtrt@gmail.com",
+                  "EMAIL_PASSWORD": "<REDACTED>",
+                  "ACCESS_KEY": "<REDACTED>",
+                  "SECRET_ACCESS_KEY": "<REDACTED>",
+                  "AWS_NAME": "codellab",
+                  "FB_GRAPH_API_TOKEN": "<REDACTED>",
+                  "VIBER_AUTH_TOKEN": "<REDACTED>",
+                  "TELEGRAM_BOT_TOKEN": "<REDACTED>",
+                  "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
+                  "ULTRAMSG_TOKEN": "<REDACTED>",
+                  "EMAIL_USER": "info@spc-it.com.iq",
+                  "EMAIL_PASS": "AltShiftDel123",
+                  "PM2_HOME": "~/.pm2"
+                },
+                "events": [
+                  {
+                    "websocket": {
+                      "route": "$default"
+                    }
+                  },
+                  {
+                    "websocket": {
+                      "route": "$connect"
+                    }
+                  },
+                  {
+                    "websocket": {
+                      "route": "$disconnect"
+                    }
+                  },
+                  {
+                    "http": {
+                      "path": "{proxy+}",
+                      "method": "any",
+                      "integration": "AWS_PROXY"
+                    }
+                  }
+                ],
+                "name": "po-dev-main",
+                "package": {},
+                "memory": 3008,
+                "timeout": 300,
+                "runtime": "nodejs18.x",
+                "vpc": {}
+              }
+            }
+          },
+          "configFileDirPath": "/Volumes/programming_folders/redia_projects/wf po/backend",
+          "config": {
+            "type": "sls"
+          },
+          "options": {},
+          "stage": "dev",
+          "dashboard": null,
+          "logger": {
+            "namespace": "s:core:resolver:sls",
+            "prefix": null,
+            "prefixColor": null
+          },
+          "_credentialsPromise": "<REDACTED>"
+        },
+        "resolvers": {}
+      }
     },
     "composeServiceName": null,
-    "servicePath": "/Volumes/programming_folders/freelancer_projects/ecommerce/backend",
+    "servicePath": "/Volumes/programming_folders/redia_projects/wf po/backend",
     "serviceConfigFileName": "serverless.yml",
     "service": {
-      "service": "e-commerce-future",
+      "service": "po",
       "provider": {
         "name": "aws",
         "versionFunctions": false,
         "runtime": "nodejs18.x",
         "region": "me-south-1",
         "memorySize": 3008,
-        "timeout": 29,
+        "timeout": 300,
         "apiGateway": {
           "binaryMediaTypes": [
             "*/*"
@@ -33,91 +625,10 @@
           "AWSTemplateFormatVersion": "2010-09-09",
           "Description": "The AWS CloudFormation template for this Serverless application",
           "Resources": {
-            "ServerlessDeploymentBucket": {
-              "Type": "AWS::S3::Bucket",
-              "Properties": {
-                "BucketEncryption": {
-                  "ServerSideEncryptionConfiguration": [
-                    {
-                      "ServerSideEncryptionByDefault": {
-                        "SSEAlgorithm": "AES256"
-                      }
-                    }
-                  ]
-                }
-              }
-            },
-            "ServerlessDeploymentBucketPolicy": {
-              "Type": "AWS::S3::BucketPolicy",
-              "Properties": {
-                "Bucket": {
-                  "Ref": "ServerlessDeploymentBucket"
-                },
-                "PolicyDocument": {
-                  "Statement": [
-                    {
-                      "Action": "s3:*",
-                      "Effect": "Deny",
-                      "Principal": "*",
-                      "Resource": [
-                        {
-                          "Fn::Join": [
-                            "",
-                            [
-                              "arn:",
-                              {
-                                "Ref": "AWS::Partition"
-                              },
-                              ":s3:::",
-                              {
-                                "Ref": "ServerlessDeploymentBucket"
-                              },
-                              "/*"
-                            ]
-                          ]
-                        },
-                        {
-                          "Fn::Join": [
-                            "",
-                            [
-                              "arn:",
-                              {
-                                "Ref": "AWS::Partition"
-                              },
-                              ":s3:::",
-                              {
-                                "Ref": "ServerlessDeploymentBucket"
-                              }
-                            ]
-                          ]
-                        }
-                      ],
-                      "Condition": {
-                        "Bool": {
-                          "aws:SecureTransport": false
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            },
             "MainLogGroup": {
               "Type": "AWS::Logs::LogGroup",
               "Properties": {
-                "LogGroupName": "/aws/lambda/e-commerce-future-dev-main"
-              }
-            },
-            "DailyOrderReminderLogGroup": {
-              "Type": "AWS::Logs::LogGroup",
-              "Properties": {
-                "LogGroupName": "/aws/lambda/e-commerce-future-dev-dailyOrderReminder"
-              }
-            },
-            "DailyItemsReminderLogGroup": {
-              "Type": "AWS::Logs::LogGroup",
-              "Properties": {
-                "LogGroupName": "/aws/lambda/e-commerce-future-dev-dailyItemsReminder"
+                "LogGroupName": "/aws/lambda/po-dev-main"
               }
             },
             "IamRoleLambdaExecution": {
@@ -145,7 +656,7 @@
                       "Fn::Join": [
                         "-",
                         [
-                          "e-commerce-future",
+                          "po",
                           "dev",
                           "lambda"
                         ]
@@ -163,7 +674,7 @@
                           ],
                           "Resource": [
                             {
-                              "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/e-commerce-future-dev*:*"
+                              "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/po-dev*:*"
                             }
                           ]
                         },
@@ -174,7 +685,7 @@
                           ],
                           "Resource": [
                             {
-                              "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/e-commerce-future-dev*:*:*"
+                              "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/po-dev*:*:*"
                             }
                           ]
                         },
@@ -198,7 +709,7 @@
                   "Fn::Join": [
                     "-",
                     [
-                      "e-commerce-future",
+                      "po",
                       "dev",
                       {
                         "Ref": "AWS::Region"
@@ -213,19 +724,17 @@
               "Type": "AWS::Lambda::Function",
               "Properties": {
                 "Code": {
-                  "S3Bucket": {
-                    "Ref": "ServerlessDeploymentBucket"
-                  },
-                  "S3Key": "serverless/e-commerce-future/dev/1730155345918-2024-10-28T22:42:25.918Z/e-commerce-future.zip"
+                  "S3Bucket": "serverless-framework-deployments-me-south-1-de4ae50a-c18d",
+                  "S3Key": "serverless/po/dev/1734857264270-2024-12-22T08:47:44.270Z/po.zip"
                 },
                 "Handler": "index.handler",
                 "Runtime": "nodejs18.x",
-                "FunctionName": "e-commerce-future-dev-main",
+                "FunctionName": "po-dev-main",
                 "MemorySize": 3008,
-                "Timeout": 29,
+                "Timeout": 300,
                 "Environment": {
                   "Variables": {
-                    "MONGO_URL": "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority",
+                    "MONGO_URL": "mongodb+srv://yusif:yusif123@cluster0.y4yjo.mongodb.net/?retryWrites=true&w=majority",
                     "TOKEN_SECRET": "<REDACTED>",
                     "ADMIN_SECRET_KEY": "<REDACTED>",
                     "JWT_SECRET": "<REDACTED>",
@@ -259,152 +768,10 @@
                 "MainLogGroup"
               ]
             },
-            "DailyOrderReminderLambdaFunction": {
-              "Type": "AWS::Lambda::Function",
-              "Properties": {
-                "Code": {
-                  "S3Bucket": {
-                    "Ref": "ServerlessDeploymentBucket"
-                  },
-                  "S3Key": "serverless/e-commerce-future/dev/1730155345918-2024-10-28T22:42:25.918Z/e-commerce-future.zip"
-                },
-                "Handler": "index.dailyOrderReminder",
-                "Runtime": "nodejs18.x",
-                "FunctionName": "e-commerce-future-dev-dailyOrderReminder",
-                "MemorySize": 3008,
-                "Timeout": 29,
-                "Environment": {
-                  "Variables": {
-                    "MONGO_URL": "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority",
-                    "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
-                    "ULTRAMSG_TOKEN": "<REDACTED>",
-                    "EMAIL_USER": "info@spc-it.com.iq",
-                    "EMAIL_PASS": "AltShiftDel123"
-                  }
-                },
-                "Role": {
-                  "Fn::GetAtt": [
-                    "IamRoleLambdaExecution",
-                    "Arn"
-                  ]
-                }
-              },
-              "DependsOn": [
-                "DailyOrderReminderLogGroup"
-              ]
-            },
-            "DailyItemsReminderLambdaFunction": {
-              "Type": "AWS::Lambda::Function",
-              "Properties": {
-                "Code": {
-                  "S3Bucket": {
-                    "Ref": "ServerlessDeploymentBucket"
-                  },
-                  "S3Key": "serverless/e-commerce-future/dev/1730155345918-2024-10-28T22:42:25.918Z/e-commerce-future.zip"
-                },
-                "Handler": "index.dailyItemsReminder",
-                "Runtime": "nodejs18.x",
-                "FunctionName": "e-commerce-future-dev-dailyItemsReminder",
-                "MemorySize": 3008,
-                "Timeout": 29,
-                "Environment": {
-                  "Variables": {
-                    "MONGO_URL": "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority",
-                    "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
-                    "ULTRAMSG_TOKEN": "<REDACTED>",
-                    "EMAIL_USER": "info@spc-it.com.iq",
-                    "EMAIL_PASS": "AltShiftDel123"
-                  }
-                },
-                "Role": {
-                  "Fn::GetAtt": [
-                    "IamRoleLambdaExecution",
-                    "Arn"
-                  ]
-                }
-              },
-              "DependsOn": [
-                "DailyItemsReminderLogGroup"
-              ]
-            },
-            "DailyOrderReminderEventsRuleSchedule1": {
-              "Type": "AWS::Events::Rule",
-              "Properties": {
-                "ScheduleExpression": "rate(12 hours)",
-                "State": "ENABLED",
-                "Targets": [
-                  {
-                    "Arn": {
-                      "Fn::GetAtt": [
-                        "DailyOrderReminderLambdaFunction",
-                        "Arn"
-                      ]
-                    },
-                    "Id": "dailyOrderReminderSchedule"
-                  }
-                ]
-              }
-            },
-            "DailyOrderReminderLambdaPermissionEventsRuleSchedule1": {
-              "Type": "AWS::Lambda::Permission",
-              "Properties": {
-                "FunctionName": {
-                  "Fn::GetAtt": [
-                    "DailyOrderReminderLambdaFunction",
-                    "Arn"
-                  ]
-                },
-                "Action": "lambda:InvokeFunction",
-                "Principal": "events.amazonaws.com",
-                "SourceArn": {
-                  "Fn::GetAtt": [
-                    "DailyOrderReminderEventsRuleSchedule1",
-                    "Arn"
-                  ]
-                }
-              }
-            },
-            "DailyItemsReminderEventsRuleSchedule1": {
-              "Type": "AWS::Events::Rule",
-              "Properties": {
-                "ScheduleExpression": "rate(24 hours)",
-                "State": "ENABLED",
-                "Targets": [
-                  {
-                    "Arn": {
-                      "Fn::GetAtt": [
-                        "DailyItemsReminderLambdaFunction",
-                        "Arn"
-                      ]
-                    },
-                    "Id": "dailyItemsReminderSchedule"
-                  }
-                ]
-              }
-            },
-            "DailyItemsReminderLambdaPermissionEventsRuleSchedule1": {
-              "Type": "AWS::Lambda::Permission",
-              "Properties": {
-                "FunctionName": {
-                  "Fn::GetAtt": [
-                    "DailyItemsReminderLambdaFunction",
-                    "Arn"
-                  ]
-                },
-                "Action": "lambda:InvokeFunction",
-                "Principal": "events.amazonaws.com",
-                "SourceArn": {
-                  "Fn::GetAtt": [
-                    "DailyItemsReminderEventsRuleSchedule1",
-                    "Arn"
-                  ]
-                }
-              }
-            },
             "ApiGatewayRestApi": {
               "Type": "AWS::ApiGateway::RestApi",
               "Properties": {
-                "Name": "dev-e-commerce-future",
+                "Name": "dev-po",
                 "BinaryMediaTypes": [
                   "*/*"
                 ],
@@ -477,7 +844,7 @@
                 "MainLambdaPermissionApiGateway"
               ]
             },
-            "ApiGatewayDeployment1730155342169": {
+            "ApiGatewayDeployment1734857252474": {
               "Type": "AWS::ApiGateway::Deployment",
               "Properties": {
                 "RestApiId": {
@@ -529,7 +896,7 @@
             "WebsocketsApi": {
               "Type": "AWS::ApiGatewayV2::Api",
               "Properties": {
-                "Name": "dev-e-commerce-future-websockets",
+                "Name": "dev-po-websockets",
                 "RouteSelectionExpression": "$request.body.action",
                 "Description": "Serverless Websockets",
                 "ProtocolType": "WEBSOCKET"
@@ -656,11 +1023,11 @@
                 "StageName": "dev",
                 "Description": "Serverless Websockets",
                 "DeploymentId": {
-                  "Ref": "WebsocketsDeploymentZmmyK0OUbp2zfujpxRed3HJUZnozoBphAgGYtpKFc"
+                  "Ref": "WebsocketsDeploymentKINrhckIiakS8Io73076QfdCEfYBAlVHMiv5qCS6l78"
                 }
               }
             },
-            "WebsocketsDeploymentZmmyK0OUbp2zfujpxRed3HJUZnozoBphAgGYtpKFc": {
+            "WebsocketsDeploymentKINrhckIiakS8Io73076QfdCEfYBAlVHMiv5qCS6l78": {
               "Type": "AWS::ApiGatewayV2::Deployment",
               "DependsOn": [
                 "SdefaultWebsocketsRoute",
@@ -677,11 +1044,9 @@
           },
           "Outputs": {
             "ServerlessDeploymentBucketName": {
-              "Value": {
-                "Ref": "ServerlessDeploymentBucket"
-              },
+              "Value": "serverless-framework-deployments-me-south-1-de4ae50a-c18d",
               "Export": {
-                "Name": "sls-e-commerce-future-dev-ServerlessDeploymentBucketName"
+                "Name": "sls-po-dev-ServerlessDeploymentBucketName"
               }
             },
             "ServiceEndpoint": {
@@ -707,7 +1072,7 @@
                 ]
               },
               "Export": {
-                "Name": "sls-e-commerce-future-dev-ServiceEndpoint"
+                "Name": "sls-po-dev-ServiceEndpoint"
               }
             },
             "ServiceEndpointWebsocket": {
@@ -733,89 +1098,7 @@
                 ]
               },
               "Export": {
-                "Name": "sls-e-commerce-future-dev-ServiceEndpointWebsocket"
-              }
-            }
-          }
-        },
-        "coreCloudFormationTemplate": {
-          "AWSTemplateFormatVersion": "2010-09-09",
-          "Description": "The AWS CloudFormation template for this Serverless application",
-          "Resources": {
-            "ServerlessDeploymentBucket": {
-              "Type": "AWS::S3::Bucket",
-              "Properties": {
-                "BucketEncryption": {
-                  "ServerSideEncryptionConfiguration": [
-                    {
-                      "ServerSideEncryptionByDefault": {
-                        "SSEAlgorithm": "AES256"
-                      }
-                    }
-                  ]
-                }
-              }
-            },
-            "ServerlessDeploymentBucketPolicy": {
-              "Type": "AWS::S3::BucketPolicy",
-              "Properties": {
-                "Bucket": {
-                  "Ref": "ServerlessDeploymentBucket"
-                },
-                "PolicyDocument": {
-                  "Statement": [
-                    {
-                      "Action": "s3:*",
-                      "Effect": "Deny",
-                      "Principal": "*",
-                      "Resource": [
-                        {
-                          "Fn::Join": [
-                            "",
-                            [
-                              "arn:",
-                              {
-                                "Ref": "AWS::Partition"
-                              },
-                              ":s3:::",
-                              {
-                                "Ref": "ServerlessDeploymentBucket"
-                              },
-                              "/*"
-                            ]
-                          ]
-                        },
-                        {
-                          "Fn::Join": [
-                            "",
-                            [
-                              "arn:",
-                              {
-                                "Ref": "AWS::Partition"
-                              },
-                              ":s3:::",
-                              {
-                                "Ref": "ServerlessDeploymentBucket"
-                              }
-                            ]
-                          ]
-                        }
-                      ],
-                      "Condition": {
-                        "Bool": {
-                          "aws:SecureTransport": false
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "Outputs": {
-            "ServerlessDeploymentBucketName": {
-              "Value": {
-                "Ref": "ServerlessDeploymentBucket"
+                "Name": "sls-po-dev-ServiceEndpointWebsocket"
               }
             }
           }
@@ -838,7 +1121,7 @@
         "main": {
           "handler": "index.handler",
           "environment": {
-            "MONGO_URL": "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority",
+            "MONGO_URL": "mongodb+srv://yusif:yusif123@cluster0.y4yjo.mongodb.net/?retryWrites=true&w=majority",
             "TOKEN_SECRET": "<REDACTED>",
             "ADMIN_SECRET_KEY": "<REDACTED>",
             "JWT_SECRET": "<REDACTED>",
@@ -884,73 +1167,23 @@
               }
             }
           ],
-          "name": "e-commerce-future-dev-main",
+          "name": "po-dev-main",
           "package": {},
           "memory": 3008,
-          "timeout": 29,
-          "runtime": "nodejs18.x",
-          "vpc": {}
-        },
-        "dailyOrderReminder": {
-          "handler": "index.dailyOrderReminder",
-          "environment": {
-            "MONGO_URL": "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority",
-            "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
-            "ULTRAMSG_TOKEN": "<REDACTED>",
-            "EMAIL_USER": "info@spc-it.com.iq",
-            "EMAIL_PASS": "AltShiftDel123"
-          },
-          "events": [
-            {
-              "schedule": {
-                "rate": [
-                  "rate(12 hours)"
-                ]
-              }
-            }
-          ],
-          "name": "e-commerce-future-dev-dailyOrderReminder",
-          "package": {},
-          "memory": 3008,
-          "timeout": 29,
-          "runtime": "nodejs18.x",
-          "vpc": {}
-        },
-        "dailyItemsReminder": {
-          "handler": "index.dailyItemsReminder",
-          "environment": {
-            "MONGO_URL": "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority",
-            "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
-            "ULTRAMSG_TOKEN": "<REDACTED>",
-            "EMAIL_USER": "info@spc-it.com.iq",
-            "EMAIL_PASS": "AltShiftDel123"
-          },
-          "events": [
-            {
-              "schedule": {
-                "rate": [
-                  "rate(24 hours)"
-                ]
-              }
-            }
-          ],
-          "name": "e-commerce-future-dev-dailyItemsReminder",
-          "package": {},
-          "memory": 3008,
-          "timeout": 29,
+          "timeout": 300,
           "runtime": "nodejs18.x",
           "vpc": {}
         }
       }
     },
-    "serviceRawFile": "service: e-commerce-future\n\nprovider:\n  name: aws\n  versionFunctions: false\n  runtime: nodejs18.x\n  region: me-south-1\n  memorySize: 3008\n  timeout: 29  # Adjusted to 29 seconds to comply with API Gateway limits\n  apiGateway:\n    binaryMediaTypes:\n      - '*/*'\n  httpApi:\n    cors: true\n\ncustom:\n  esbuild:\n    external:\n      - sharp\n  packagerOptions:\n    scripts:\n      - npm install --arch=x64 --platform=linux sharp\n\nfunctions:\n  main:\n    handler: index.handler\n    environment:\n      MONGO_URL: \"mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority\"\n      TOKEN_SECRET: \"laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs\"\n      ADMIN_SECRET_KEY: \"FoodoYusif123@\"\n      JWT_SECRET: \"1234567890\"\n      TWILIO_ACCOUNT_SID: \"AC910896cde4bfb662ca9fe076b02536e7\"\n      TWILIO_AUTH_TOKEN: \"5ce307ff197422b1b5f97849f4e5db2c\"\n      TWILIO_PHONE_NUMBER: \"+13466666692\"\n      TWILIO_WHATSAPP_PHONE: \"+14155238886\"\n      EMAIL_USERNAME: \"yusifdhrgamtrt@gmail.com\"\n      EMAIL_PASSWORD: \"lzjnrolzwuspywug\"\n      ACCESS_KEY: \"AKIAVCZ3WWWGPXVCKJBA\"\n      SECRET_ACCESS_KEY: \"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\"\n      AWS_NAME: \"codellab\"\n      FB_GRAPH_API_TOKEN: \"EAAIE6J8ewBUBANQt5nEBIURGdgjURdMs3e9A78qWt1uOMOyfThvjSdgoz0q6ZC2ZBNuZCmba7SNRlpWFdeLuLylMEIrLlkxZAmSjKiZAQyr2uVwvJjytGFZBRnywQUbudJBfxQXWx3rCyOZBscmiWlnrbTswIZAWZAZAsDDbsR8lwqNar58Q9swAfNnZB4xUOvQ8BwURyJUAy0wFgZDZD\"\n      VIBER_AUTH_TOKEN: \"50ae4cd97ca7e5c1-27076050a42dc54c-de9a63fa03059af1\"\n      TELEGRAM_BOT_TOKEN: \"5612346036:AAGb0txW0SPrQSToEIQODxI_gMEdVCMJKWs\"\n      ULTRAMSG_API_URL: \"https://api.ultramsg.com/instance87136/messages/chat\"\n      ULTRAMSG_TOKEN: \"2i9r14uumbiddwpb\"\n      EMAIL_USER: \"info@spc-it.com.iq\"\n      EMAIL_PASS: \"AltShiftDel123\"\n      PM2_HOME: ~/.pm2\n    events:\n      - websocket:\n          route: $default\n      - websocket:\n          route: $connect\n      - websocket:\n          route: $disconnect\n      - http:\n          path: /{proxy+}\n          method: ANY\n\n  dailyOrderReminder:\n    handler: index.dailyOrderReminder\n    environment:\n      MONGO_URL: \"mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority\"\n      ULTRAMSG_API_URL: \"https://api.ultramsg.com/instance87136/messages/chat\"\n      ULTRAMSG_TOKEN: \"2i9r14uumbiddwpb\"\n      EMAIL_USER: \"info@spc-it.com.iq\"\n      EMAIL_PASS: \"AltShiftDel123\"\n    events:\n      - schedule:\n          rate: rate(12 hours)\n\n  dailyItemsReminder:\n    handler: index.dailyItemsReminder\n    environment:\n      MONGO_URL: \"mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority\"\n      ULTRAMSG_API_URL: \"https://api.ultramsg.com/instance87136/messages/chat\"\n      ULTRAMSG_TOKEN: \"2i9r14uumbiddwpb\"\n      EMAIL_USER: \"info@spc-it.com.iq\"\n      EMAIL_PASS: \"AltShiftDel123\"\n    events:\n      - schedule:\n          rate: rate(24 hours)\n\n",
+    "serviceRawFile": "service: po\n\nprovider:\n  name: aws\n  versionFunctions: false\n  runtime: nodejs18.x\n  region: me-south-1\n  memorySize: 3008\n  timeout: 300  # Adjusted to 29 seconds to comply with API Gateway limits\n  apiGateway:\n    binaryMediaTypes:\n      - '*/*'\n  httpApi:\n    cors: true\n\ncustom:\n  esbuild:\n    external:\n      - sharp\n  packagerOptions:\n    scripts:\n      - npm install --arch=x64 --platform=linux sharp\n\nfunctions:\n  main:\n    handler: index.handler\n    environment:\n      MONGO_URL: \"mongodb+srv://yusif:yusif123@cluster0.y4yjo.mongodb.net/?retryWrites=true&w=majority\"\n      TOKEN_SECRET: \"laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs\"\n      ADMIN_SECRET_KEY: \"FoodoYusif123@\"\n      JWT_SECRET: \"1234567890\"\n      TWILIO_ACCOUNT_SID: \"AC910896cde4bfb662ca9fe076b02536e7\"\n      TWILIO_AUTH_TOKEN: \"5ce307ff197422b1b5f97849f4e5db2c\"\n      TWILIO_PHONE_NUMBER: \"+13466666692\"\n      TWILIO_WHATSAPP_PHONE: \"+14155238886\"\n      EMAIL_USERNAME: \"yusifdhrgamtrt@gmail.com\"\n      EMAIL_PASSWORD: \"lzjnrolzwuspywug\"\n      ACCESS_KEY: \"AKIAVCZ3WWWGPXVCKJBA\"\n      SECRET_ACCESS_KEY: \"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\"\n      AWS_NAME: \"codellab\"\n      FB_GRAPH_API_TOKEN: \"EAAIE6J8ewBUBANQt5nEBIURGdgjURdMs3e9A78qWt1uOMOyfThvjSdgoz0q6ZC2ZBNuZCmba7SNRlpWFdeLuLylMEIrLlkxZAmSjKiZAQyr2uVwvJjytGFZBRnywQUbudJBfxQXWx3rCyOZBscmiWlnrbTswIZAWZAZAsDDbsR8lwqNar58Q9swAfNnZB4xUOvQ8BwURyJUAy0wFgZDZD\"\n      VIBER_AUTH_TOKEN: \"50ae4cd97ca7e5c1-27076050a42dc54c-de9a63fa03059af1\"\n      TELEGRAM_BOT_TOKEN: \"5612346036:AAGb0txW0SPrQSToEIQODxI_gMEdVCMJKWs\"\n      ULTRAMSG_API_URL: \"https://api.ultramsg.com/instance87136/messages/chat\"\n      ULTRAMSG_TOKEN: \"2i9r14uumbiddwpb\"\n      EMAIL_USER: \"info@spc-it.com.iq\"\n      EMAIL_PASS: \"AltShiftDel123\"\n      PM2_HOME: ~/.pm2\n    events:\n      - websocket:\n          route: $default\n      - websocket:\n          route: $connect\n      - websocket:\n          route: $disconnect\n      - http:\n          path: /{proxy+}\n          method: ANY\n\n  \n",
     "command": [
       "deploy"
     ],
     "options": {},
     "error": null,
     "params": {},
-    "machineId": "714590ad28276279baf691a0a20aa0c4",
+    "machineId": "4f90b215bd1a81ec230fd63549b468c6",
     "stage": "dev",
     "accessKeyV2": "<REDACTED>",
     "accessKeyV1": "<REDACTED>",
@@ -973,31 +1206,31 @@
     "serviceProviderAwsCredentials": "<REDACTED>",
     "serviceProviderAwsAccountId": "689316488695",
     "projectType": "traditional",
-    "versionSf": "4.4.7",
-    "serviceProviderAwsCfStackName": "e-commerce-future-dev",
+    "versionSf": "4.4.18",
+    "serviceProviderAwsCfStackName": "po-dev",
     "integrations": {},
-    "serviceUniqueId": "arn:aws:cloudformation:me-south-1:689316488695:stack/e-commerce-future-dev/96d1b5f0-2459-11ef-9197-06fc2dc5b07f",
-    "serviceProviderAwsCfStackId": "arn:aws:cloudformation:me-south-1:689316488695:stack/e-commerce-future-dev/96d1b5f0-2459-11ef-9197-06fc2dc5b07f",
-    "serviceProviderAwsCfStackCreated": "2024-06-06T23:07:47.344Z",
-    "serviceProviderAwsCfStackUpdated": "2024-10-28T22:42:45.495Z",
+    "serviceUniqueId": "arn:aws:cloudformation:me-south-1:689316488695:stack/po-dev/ec3926a0-b869-11ef-9be9-0aae644ad177",
+    "serviceProviderAwsCfStackId": "arn:aws:cloudformation:me-south-1:689316488695:stack/po-dev/ec3926a0-b869-11ef-9be9-0aae644ad177",
+    "serviceProviderAwsCfStackCreated": "2024-12-12T09:17:35.220Z",
+    "serviceProviderAwsCfStackUpdated": "2024-12-22T08:48:16.376Z",
     "serviceProviderAwsCfStackStatus": "UPDATE_COMPLETE",
     "serviceProviderAwsCfStackOutputs": [
       {
         "OutputKey": "ServiceEndpoint",
-        "OutputValue": "https://dsji7xuoyd.execute-api.me-south-1.amazonaws.com/dev",
+        "OutputValue": "https://dl8spx1jkf.execute-api.me-south-1.amazonaws.com/dev",
         "Description": "URL of the service endpoint",
-        "ExportName": "sls-e-commerce-future-dev-ServiceEndpoint"
+        "ExportName": "sls-po-dev-ServiceEndpoint"
       },
       {
         "OutputKey": "ServiceEndpointWebsocket",
-        "OutputValue": "wss://odsqxcol34.execute-api.me-south-1.amazonaws.com/dev",
+        "OutputValue": "wss://e3nze56a5a.execute-api.me-south-1.amazonaws.com/dev",
         "Description": "URL of the service endpoint",
-        "ExportName": "sls-e-commerce-future-dev-ServiceEndpointWebsocket"
+        "ExportName": "sls-po-dev-ServiceEndpointWebsocket"
       },
       {
         "OutputKey": "ServerlessDeploymentBucketName",
-        "OutputValue": "e-commerce-future-dev-serverlessdeploymentbucket-dqc5b3lfvvrb",
-        "ExportName": "sls-e-commerce-future-dev-ServerlessDeploymentBucketName"
+        "OutputValue": "serverless-framework-deployments-me-south-1-de4ae50a-c18d",
+        "ExportName": "sls-po-dev-ServerlessDeploymentBucketName"
       }
     ]
   }

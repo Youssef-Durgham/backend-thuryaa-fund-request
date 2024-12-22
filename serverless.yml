@@ -1,4 +1,4 @@
-service: e-commerce-future
+service: po
 
 provider:
   name: aws
@@ -6,7 +6,7 @@ provider:
   runtime: nodejs18.x
   region: me-south-1
   memorySize: 3008
-  timeout: 29  # Adjusted to 29 seconds to comply with API Gateway limits
+  timeout: 300  # Adjusted to 29 seconds to comply with API Gateway limits
   apiGateway:
     binaryMediaTypes:
       - '*/*'
@@ -25,7 +25,7 @@ functions:
   main:
     handler: index.handler
     environment:
-      MONGO_URL: "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority"
+      MONGO_URL: "mongodb+srv://yusif:yusif123@cluster0.y4yjo.mongodb.net/?retryWrites=true&w=majority"
       TOKEN_SECRET: "laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs"
       ADMIN_SECRET_KEY: "FoodoYusif123@"
       JWT_SECRET: "1234567890"
@@ -57,27 +57,4 @@ functions:
           path: /{proxy+}
           method: ANY
 
-  dailyOrderReminder:
-    handler: index.dailyOrderReminder
-    environment:
-      MONGO_URL: "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority"
-      ULTRAMSG_API_URL: "https://api.ultramsg.com/instance87136/messages/chat"
-      ULTRAMSG_TOKEN: "2i9r14uumbiddwpb"
-      EMAIL_USER: "info@spc-it.com.iq"
-      EMAIL_PASS: "AltShiftDel123"
-    events:
-      - schedule:
-          rate: rate(12 hours)
-
-  dailyItemsReminder:
-    handler: index.dailyItemsReminder
-    environment:
-      MONGO_URL: "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority"
-      ULTRAMSG_API_URL: "https://api.ultramsg.com/instance87136/messages/chat"
-      ULTRAMSG_TOKEN: "2i9r14uumbiddwpb"
-      EMAIL_USER: "info@spc-it.com.iq"
-      EMAIL_PASS: "AltShiftDel123"
-    events:
-      - schedule:
-          rate: rate(24 hours)
-
+  

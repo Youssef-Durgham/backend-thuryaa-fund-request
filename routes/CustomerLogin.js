@@ -173,7 +173,8 @@ if (formattedPhone.startsWith('964') && formattedPhone.charAt(3) !== '0') {
       action: 'login',
       performedBy: customer._id,
       targetUser: customer._id,
-      userType: 'Customer'
+      userType: 'Customer',
+      itemType: 'user-login'
     });
     await activityLog.save();
 

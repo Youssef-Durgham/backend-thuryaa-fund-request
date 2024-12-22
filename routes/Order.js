@@ -16,38 +16,50 @@ const Box = require('../model/Box');
 const router = express.Router();
 
 const checkPermission = (permission) => {
-    return async (req, res, next) => {
-      console.log(req.headers.authorization, "by func");
-      try {
-        const token = req.headers.authorization.split(' ')[1];
-        console.log(token);
-        
-        const decoded = jwt.verify(token, 'your_jwt_secret');
-        console.log(decoded);
-        console.log(permission, token, decoded);
-  
-        const admin = await Admin.findById(decoded.id).populate('roles');
-  
-        // Check permissions in directly assigned roles
-        const hasPermission = admin.roles.some(role =>
-          role.permissions.includes(permission)
-        );
-  
-        console.log(permission, token, decoded, admin, hasPermission);
-  
-        if (!hasPermission) {
-          return res.status(403).json({ message: 'Forbidden' });
-        }
-  
-        req.adminId = decoded.id; // Store the admin ID in the request object
-        next();
-      } catch (error) {
-        console.log("JWT Verification Error:", error.message);
-        console.log(error.stack);
-        res.status(401).json({ message: 'Unauthorized', error: error.message });
+  return async (req, res, next) => {
+    console.log(req.headers.authorization, "by func");
+    try {
+      const token = req.headers.authorization.split(' ')[1];
+      console.log(token);
+
+      const decoded = jwt.verify(token, 'your_jwt_secret');
+      console.log(decoded);
+
+      // Find the admin user
+      const admin = await Admin.findById(decoded.id).populate('roles');
+
+      if (!admin) {
+        return res.status(401).json({ message: 'Unauthorized: User not found' });
       }
-    };
+
+      // If the user is a System user, bypass permission checks
+      if (admin.type === 'System') {
+        console.log('System user detected. Bypassing permission checks.');
+        req.adminId = decoded.id; // Store the admin ID in the request object
+        return next();
+      }
+
+      // Check permissions in directly assigned roles
+      const hasPermission = admin.roles.some(role =>
+        role.permissions.includes(permission)
+      );
+
+      console.log(permission, token, decoded, admin, hasPermission);
+
+      if (!hasPermission) {
+        return res.status(403).json({ message: 'Forbidden: Insufficient permissions' });
+      }
+
+      req.adminId = decoded.id; // Store the admin ID in the request object
+      next();
+    } catch (error) {
+      console.log("JWT Verification Error:", error.message);
+      console.log(error.stack);
+      res.status(401).json({ message: 'Unauthorized', error: error.message });
+    }
   };
+};
+
 
 
 
@@ -380,7 +392,7 @@ router.post('/cancel-order-sales/:id', checkPermission('cancel_order_sales'), as
         items: itemsDetails,
         totalAmount: totalAmount
       }
-    });
+    }); 
 
     await order.save({ session });
     await session.commitTransaction();
@@ -399,7 +411,6 @@ router.post('/cancel-order-sales/:id', checkPermission('cancel_order_sales'), as
 router.get('/orders', checkPermission('Search_order'), async (req, res) => {
   try {
     const { page = 1, limit = 50, search = '', orderId, status, dateFrom, dateTo } = req.query;
-
     const query = {};
 
     // Search by customer name or phone
@@ -433,6 +444,7 @@ router.get('/orders', checkPermission('Search_order'), async (req, res) => {
 
     const orders = await Order.find(query)
       .populate('customer')
+      .sort({ orderId: -1 })  // Changed to sort by orderId in descending order
       .skip((page - 1) * limit)
       .limit(parseInt(limit, 10));
 

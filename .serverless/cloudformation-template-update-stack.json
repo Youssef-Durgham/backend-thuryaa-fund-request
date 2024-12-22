@@ -2,91 +2,10 @@
   "AWSTemplateFormatVersion": "2010-09-09",
   "Description": "The AWS CloudFormation template for this Serverless application",
   "Resources": {
-    "ServerlessDeploymentBucket": {
-      "Type": "AWS::S3::Bucket",
-      "Properties": {
-        "BucketEncryption": {
-          "ServerSideEncryptionConfiguration": [
-            {
-              "ServerSideEncryptionByDefault": {
-                "SSEAlgorithm": "AES256"
-              }
-            }
-          ]
-        }
-      }
-    },
-    "ServerlessDeploymentBucketPolicy": {
-      "Type": "AWS::S3::BucketPolicy",
-      "Properties": {
-        "Bucket": {
-          "Ref": "ServerlessDeploymentBucket"
-        },
-        "PolicyDocument": {
-          "Statement": [
-            {
-              "Action": "s3:*",
-              "Effect": "Deny",
-              "Principal": "*",
-              "Resource": [
-                {
-                  "Fn::Join": [
-                    "",
-                    [
-                      "arn:",
-                      {
-                        "Ref": "AWS::Partition"
-                      },
-                      ":s3:::",
-                      {
-                        "Ref": "ServerlessDeploymentBucket"
-                      },
-                      "/*"
-                    ]
-                  ]
-                },
-                {
-                  "Fn::Join": [
-                    "",
-                    [
-                      "arn:",
-                      {
-                        "Ref": "AWS::Partition"
-                      },
-                      ":s3:::",
-                      {
-                        "Ref": "ServerlessDeploymentBucket"
-                      }
-                    ]
-                  ]
-                }
-              ],
-              "Condition": {
-                "Bool": {
-                  "aws:SecureTransport": false
-                }
-              }
-            }
-          ]
-        }
-      }
-    },
     "MainLogGroup": {
       "Type": "AWS::Logs::LogGroup",
       "Properties": {
-        "LogGroupName": "/aws/lambda/e-commerce-future-dev-main"
-      }
-    },
-    "DailyOrderReminderLogGroup": {
-      "Type": "AWS::Logs::LogGroup",
-      "Properties": {
-        "LogGroupName": "/aws/lambda/e-commerce-future-dev-dailyOrderReminder"
-      }
-    },
-    "DailyItemsReminderLogGroup": {
-      "Type": "AWS::Logs::LogGroup",
-      "Properties": {
-        "LogGroupName": "/aws/lambda/e-commerce-future-dev-dailyItemsReminder"
+        "LogGroupName": "/aws/lambda/po-dev-main"
       }
     },
     "IamRoleLambdaExecution": {
@@ -114,7 +33,7 @@
               "Fn::Join": [
                 "-",
                 [
-                  "e-commerce-future",
+                  "po",
                   "dev",
                   "lambda"
                 ]
@@ -132,7 +51,7 @@
                   ],
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/e-commerce-future-dev*:*"
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/po-dev*:*"
                     }
                   ]
                 },
@@ -143,7 +62,7 @@
                   ],
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/e-commerce-future-dev*:*:*"
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/po-dev*:*:*"
                     }
                   ]
                 },
@@ -167,7 +86,7 @@
           "Fn::Join": [
             "-",
             [
-              "e-commerce-future",
+              "po",
               "dev",
               {
                 "Ref": "AWS::Region"
@@ -182,19 +101,17 @@
       "Type": "AWS::Lambda::Function",
       "Properties": {
         "Code": {
-          "S3Bucket": {
-            "Ref": "ServerlessDeploymentBucket"
-          },
-          "S3Key": "serverless/e-commerce-future/dev/1730155345918-2024-10-28T22:42:25.918Z/e-commerce-future.zip"
+          "S3Bucket": "serverless-framework-deployments-me-south-1-de4ae50a-c18d",
+          "S3Key": "serverless/po/dev/1734857264270-2024-12-22T08:47:44.270Z/po.zip"
         },
         "Handler": "index.handler",
         "Runtime": "nodejs18.x",
-        "FunctionName": "e-commerce-future-dev-main",
+        "FunctionName": "po-dev-main",
         "MemorySize": 3008,
-        "Timeout": 29,
+        "Timeout": 300,
         "Environment": {
           "Variables": {
-            "MONGO_URL": "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority",
+            "MONGO_URL": "mongodb+srv://yusif:yusif123@cluster0.y4yjo.mongodb.net/?retryWrites=true&w=majority",
             "TOKEN_SECRET": "laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs",
             "ADMIN_SECRET_KEY": "FoodoYusif123@",
             "JWT_SECRET": "1234567890",
@@ -228,152 +145,10 @@
         "MainLogGroup"
       ]
     },
-    "DailyOrderReminderLambdaFunction": {
-      "Type": "AWS::Lambda::Function",
-      "Properties": {
-        "Code": {
-          "S3Bucket": {
-            "Ref": "ServerlessDeploymentBucket"
-          },
-          "S3Key": "serverless/e-commerce-future/dev/1730155345918-2024-10-28T22:42:25.918Z/e-commerce-future.zip"
-        },
-        "Handler": "index.dailyOrderReminder",
-        "Runtime": "nodejs18.x",
-        "FunctionName": "e-commerce-future-dev-dailyOrderReminder",
-        "MemorySize": 3008,
-        "Timeout": 29,
-        "Environment": {
-          "Variables": {
-            "MONGO_URL": "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority",
-            "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
-            "ULTRAMSG_TOKEN": "2i9r14uumbiddwpb",
-            "EMAIL_USER": "info@spc-it.com.iq",
-            "EMAIL_PASS": "AltShiftDel123"
-          }
-        },
-        "Role": {
-          "Fn::GetAtt": [
-            "IamRoleLambdaExecution",
-            "Arn"
-          ]
-        }
-      },
-      "DependsOn": [
-        "DailyOrderReminderLogGroup"
-      ]
-    },
-    "DailyItemsReminderLambdaFunction": {
-      "Type": "AWS::Lambda::Function",
-      "Properties": {
-        "Code": {
-          "S3Bucket": {
-            "Ref": "ServerlessDeploymentBucket"
-          },
-          "S3Key": "serverless/e-commerce-future/dev/1730155345918-2024-10-28T22:42:25.918Z/e-commerce-future.zip"
-        },
-        "Handler": "index.dailyItemsReminder",
-        "Runtime": "nodejs18.x",
-        "FunctionName": "e-commerce-future-dev-dailyItemsReminder",
-        "MemorySize": 3008,
-        "Timeout": 29,
-        "Environment": {
-          "Variables": {
-            "MONGO_URL": "mongodb+srv://yusif:yusif@salaprod.ge3m3ug.mongodb.net/?retryWrites=true&w=majority",
-            "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
-            "ULTRAMSG_TOKEN": "2i9r14uumbiddwpb",
-            "EMAIL_USER": "info@spc-it.com.iq",
-            "EMAIL_PASS": "AltShiftDel123"
-          }
-        },
-        "Role": {
-          "Fn::GetAtt": [
-            "IamRoleLambdaExecution",
-            "Arn"
-          ]
-        }
-      },
-      "DependsOn": [
-        "DailyItemsReminderLogGroup"
-      ]
-    },
-    "DailyOrderReminderEventsRuleSchedule1": {
-      "Type": "AWS::Events::Rule",
-      "Properties": {
-        "ScheduleExpression": "rate(12 hours)",
-        "State": "ENABLED",
-        "Targets": [
-          {
-            "Arn": {
-              "Fn::GetAtt": [
-                "DailyOrderReminderLambdaFunction",
-                "Arn"
-              ]
-            },
-            "Id": "dailyOrderReminderSchedule"
-          }
-        ]
-      }
-    },
-    "DailyOrderReminderLambdaPermissionEventsRuleSchedule1": {
-      "Type": "AWS::Lambda::Permission",
-      "Properties": {
-        "FunctionName": {
-          "Fn::GetAtt": [
-            "DailyOrderReminderLambdaFunction",
-            "Arn"
-          ]
-        },
-        "Action": "lambda:InvokeFunction",
-        "Principal": "events.amazonaws.com",
-        "SourceArn": {
-          "Fn::GetAtt": [
-            "DailyOrderReminderEventsRuleSchedule1",
-            "Arn"
-          ]
-        }
-      }
-    },
-    "DailyItemsReminderEventsRuleSchedule1": {
-      "Type": "AWS::Events::Rule",
-      "Properties": {
-        "ScheduleExpression": "rate(24 hours)",
-        "State": "ENABLED",
-        "Targets": [
-          {
-            "Arn": {
-              "Fn::GetAtt": [
-                "DailyItemsReminderLambdaFunction",
-                "Arn"
-              ]
-            },
-            "Id": "dailyItemsReminderSchedule"
-          }
-        ]
-      }
-    },
-    "DailyItemsReminderLambdaPermissionEventsRuleSchedule1": {
-      "Type": "AWS::Lambda::Permission",
-      "Properties": {
-        "FunctionName": {
-          "Fn::GetAtt": [
-            "DailyItemsReminderLambdaFunction",
-            "Arn"
-          ]
-        },
-        "Action": "lambda:InvokeFunction",
-        "Principal": "events.amazonaws.com",
-        "SourceArn": {
-          "Fn::GetAtt": [
-            "DailyItemsReminderEventsRuleSchedule1",
-            "Arn"
-          ]
-        }
-      }
-    },
     "ApiGatewayRestApi": {
       "Type": "AWS::ApiGateway::RestApi",
       "Properties": {
-        "Name": "dev-e-commerce-future",
+        "Name": "dev-po",
         "BinaryMediaTypes": [
           "*/*"
         ],
@@ -446,7 +221,7 @@
         "MainLambdaPermissionApiGateway"
       ]
     },
-    "ApiGatewayDeployment1730155342169": {
+    "ApiGatewayDeployment1734857252474": {
       "Type": "AWS::ApiGateway::Deployment",
       "Properties": {
         "RestApiId": {
@@ -498,7 +273,7 @@
     "WebsocketsApi": {
       "Type": "AWS::ApiGatewayV2::Api",
       "Properties": {
-        "Name": "dev-e-commerce-future-websockets",
+        "Name": "dev-po-websockets",
         "RouteSelectionExpression": "$request.body.action",
         "Description": "Serverless Websockets",
         "ProtocolType": "WEBSOCKET"
@@ -625,11 +400,11 @@
         "StageName": "dev",
         "Description": "Serverless Websockets",
         "DeploymentId": {
-          "Ref": "WebsocketsDeploymentZmmyK0OUbp2zfujpxRed3HJUZnozoBphAgGYtpKFc"
+          "Ref": "WebsocketsDeploymentKINrhckIiakS8Io73076QfdCEfYBAlVHMiv5qCS6l78"
         }
       }
     },
-    "WebsocketsDeploymentZmmyK0OUbp2zfujpxRed3HJUZnozoBphAgGYtpKFc": {
+    "WebsocketsDeploymentKINrhckIiakS8Io73076QfdCEfYBAlVHMiv5qCS6l78": {
       "Type": "AWS::ApiGatewayV2::Deployment",
       "DependsOn": [
         "SdefaultWebsocketsRoute",
@@ -646,11 +421,9 @@
   },
   "Outputs": {
     "ServerlessDeploymentBucketName": {
-      "Value": {
-        "Ref": "ServerlessDeploymentBucket"
-      },
+      "Value": "serverless-framework-deployments-me-south-1-de4ae50a-c18d",
       "Export": {
-        "Name": "sls-e-commerce-future-dev-ServerlessDeploymentBucketName"
+        "Name": "sls-po-dev-ServerlessDeploymentBucketName"
       }
     },
     "ServiceEndpoint": {
@@ -676,7 +449,7 @@
         ]
       },
       "Export": {
-        "Name": "sls-e-commerce-future-dev-ServiceEndpoint"
+        "Name": "sls-po-dev-ServiceEndpoint"
       }
     },
     "ServiceEndpointWebsocket": {
@@ -702,7 +475,7 @@
         ]
       },
       "Export": {
-        "Name": "sls-e-commerce-future-dev-ServiceEndpointWebsocket"
+        "Name": "sls-po-dev-ServiceEndpointWebsocket"
       }
     }
   }

@@ -11,54 +11,73 @@ const Box = require('../model/Box');
 const TransBox = require('../model/TransBox');
 const CashBox = require('../model/CashBox');
 const mongoose = require('mongoose');
+const ExchangeRate = require('../model/v2/ExchangeRate');
+const checkEntityAccess = require('../utils/entityAccess');
 
 const router = express.Router();
 
+// تطبيق Middleware على جميع المسارات في هذا الـ Router
+router.use(checkEntityAccess);
+
 const checkPermission = (permission) => {
-    return async (req, res, next) => {
-      console.log(req.headers.authorization, "by func");
-      try {
-        const token = req.headers.authorization.split(' ')[1];
-        console.log(token);
-        
-        const decoded = jwt.verify(token, 'your_jwt_secret');
-        console.log(decoded);
-        console.log(permission, token, decoded);
-  
-        const admin = await Admin.findById(decoded.id).populate('roles');
-  
-        // Check permissions in directly assigned roles
-        const hasPermission = admin.roles.some(role =>
-          role.permissions.includes(permission)
-        );
-  
-        console.log(permission, token, decoded, admin, hasPermission);
-  
-        if (!hasPermission) {
-          return res.status(403).json({ message: 'Forbidden' });
-        }
-  
-        req.adminId = decoded.id; // Store the admin ID in the request object
-        next();
-      } catch (error) {
-        console.log("JWT Verification Error:", error.message);
-        console.log(error.stack);
-        res.status(401).json({ message: 'Unauthorized', error: error.message });
+  return async (req, res, next) => {
+    console.log(req.headers.authorization, "by func");
+    try {
+      const token = req.headers.authorization.split(' ')[1];
+      console.log(token);
+
+      const decoded = jwt.verify(token, 'your_jwt_secret');
+      console.log(decoded);
+
+      // Find the admin user
+      const admin = await Admin.findById(decoded.id).populate('roles');
+
+      if (!admin) {
+        return res.status(401).json({ message: 'Unauthorized: User not found' });
       }
-    };
+
+      // If the user is a System user, bypass permission checks
+      if (admin.type === 'System') {
+        console.log('System user detected. Bypassing permission checks.');
+        req.adminId = decoded.id; // Store the admin ID in the request object
+        return next();
+      }
+
+      // Check permissions in directly assigned roles
+      const hasPermission = admin.roles.some(role =>
+        role.permissions.includes(permission)
+      );
+
+      console.log(permission, token, decoded, admin, hasPermission);
+
+      if (!hasPermission) {
+        return res.status(403).json({ message: 'Forbidden: Insufficient permissions' });
+      }
+
+      req.adminId = decoded.id; // Store the admin ID in the request object
+      next();
+    } catch (error) {
+      console.log("JWT Verification Error:", error.message);
+      console.log(error.stack);
+      res.status(401).json({ message: 'Unauthorized', error: error.message });
+    }
   };
+};
+
 
 
 // Create a new box
 router.post('/boxes', checkPermission('Create_Box'), async (req, res) => {
   try {
     const { name, description, type } = req.body;
+    const entityId = req.entity._id; // Extract entity ID from request
 
     const newBox = new Box({
       name,
       description,
       type,
-      createdBy: req.adminId
+      createdBy: req.adminId,
+      entity: entityId
     });
 
     await newBox.save();
@@ -75,7 +94,11 @@ router.post('/boxes', checkPermission('Create_Box'), async (req, res) => {
 // Get all boxes
 router.get('/boxes', checkPermission('View_Boxes'), async (req, res) => {
   try {
-    const boxes = await Box.find({ isActive: true }).populate('createdBy', 'name');
+    const entityId = req.entity._id; // Extract the entity ID from the request
+
+    const boxes = await Box.find({ isActive: true, entity: entityId }) // Filter by isActive and entity
+      .populate('createdBy', 'name');
+
     res.status(200).json(boxes);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -86,19 +109,21 @@ router.get('/boxes', checkPermission('View_Boxes'), async (req, res) => {
 router.put('/boxes/:id', checkPermission('Edit_Box'), async (req, res) => {
   try {
     const { name, description, type, isActive } = req.body;
-    const updatedBox = await Box.findByIdAndUpdate(
-      req.params.id,
+    const entityId = req.entity._id;
+
+    const box = await Box.findOneAndUpdate(
+      { _id: req.params.id, entity: entityId }, // Ensure the box belongs to the entity
       { name, description, type, isActive },
       { new: true }
     );
 
-    if (!updatedBox) {
-      return res.status(404).json({ message: 'Box not found' });
+    if (!box) {
+      return res.status(404).json({ message: 'Box not found or does not belong to this entity' });
     }
 
     res.status(200).json({
       message: 'Box updated successfully',
-      box: updatedBox
+      box
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -109,68 +134,44 @@ router.put('/boxes/:id', checkPermission('Edit_Box'), async (req, res) => {
 router.post('/boxes/transfer', checkPermission('Transfer_Money'), async (req, res) => {
   try {
     const { fromBoxId, toBoxId, amount, description } = req.body;
-    if (!fromBoxId || !toBoxId || !amount) {
-      return res.status(400).json({ message: 'From Box ID, To Box ID, and amount are required' });
-    }
+    const entityId = req.entity._id;
 
-    const fromBox = await Box.findById(fromBoxId);
-    const toBox = await Box.findById(toBoxId);
+    const [fromBox, toBox] = await Promise.all([
+      Box.findOne({ _id: fromBoxId, entity: entityId }),
+      Box.findOne({ _id: toBoxId, entity: entityId })
+    ]);
 
     if (!fromBox || !toBox) {
-      return res.status(404).json({ message: 'One or both boxes not found' });
+      return res.status(404).json({ message: 'One or both boxes not found or do not belong to this entity' });
     }
 
-    // Check if fromBox is active
-    if (!fromBox.isActive) {
-      const closedCashBox = await CashBox.findOne({ box: fromBoxId, isOpen: false }).sort({ closedAt: -1 });
-      return res.status(400).json({ 
-        message: 'Source box is closed', 
-        closedDate: closedCashBox ? closedCashBox.closedAt : 'Unknown' 
-      });
-    }
-
-    // Check if toBox is active
-    if (!toBox.isActive) {
-      const closedCashBox = await CashBox.findOne({ box: toBoxId, isOpen: false }).sort({ closedAt: -1 });
-      return res.status(400).json({ 
-        message: 'Destination box is closed', 
-        closedDate: closedCashBox ? closedCashBox.closedAt : 'Unknown' 
-      });
+    if (!fromBox.isActive || !toBox.isActive) {
+      return res.status(400).json({ message: 'One or both boxes are inactive' });
     }
 
     const transferAmount = Number(amount);
-    if (isNaN(transferAmount) || transferAmount <= 0) {
-      return res.status(400).json({ message: 'Invalid amount' });
+    if (isNaN(transferAmount) || transferAmount <= 0 || fromBox.balance < transferAmount) {
+      return res.status(400).json({ message: 'Invalid amount or insufficient funds in source box' });
     }
 
-    if (fromBox.balance < transferAmount) {
-      return res.status(400).json({ message: 'Insufficient funds in source box' });
-    }
-
-    // Create a new transaction
     const transaction = new TransBox({
       fromBox: fromBoxId,
       toBox: toBoxId,
       amount: transferAmount,
       performedBy: req.adminId,
       description,
-      type: 'transfer'
+      type: 'transfer',
+      entity: entityId
     });
 
-    // Update box balances
     fromBox.balance -= transferAmount;
     toBox.balance += transferAmount;
 
-    // Save all changes
-    await Promise.all([
-      transaction.save(),
-      fromBox.save(),
-      toBox.save()
-    ]);
+    await Promise.all([transaction.save(), fromBox.save(), toBox.save()]);
 
     res.status(200).json({
       message: 'Transfer successful',
-      transaction: transaction,
+      transaction,
       fromBox: { id: fromBox._id, newBalance: fromBox.balance },
       toBox: { id: toBox._id, newBalance: toBox.balance }
     });
@@ -182,22 +183,18 @@ router.post('/boxes/transfer', checkPermission('Transfer_Money'), async (req, re
 // Get all admins with 'activate_order_casher' permission and their cashbox balance
 router.get('/admins/activate_order_casher/balance', checkPermission('Show_CashBox'), async (req, res) => {
   try {
-    // Find all roles that include the 'activate_order_casher' permission
-    const rolesWithPermission = await Role.find({ permissions: 'activate_order_casher' });
+    const entityId = req.entity._id;
+
+    const rolesWithPermission = await Role.find({ permissions: 'activate_order_casher', entity: entityId });
     if (!rolesWithPermission.length) {
       return res.status(404).json({ message: 'No roles with the specified permission found' });
     }
 
-    // Extract role IDs
     const roleIds = rolesWithPermission.map(role => role._id);
+    const admins = await Admin.find({ roles: { $in: roleIds }, entity: entityId }, 'name phone');
 
-    // Find all admins with these roles
-    const admins = await Admin.find({ roles: { $in: roleIds } }, 'name phone');
-
-    // Get box information for each admin
     const adminBoxes = await Promise.all(admins.map(async (admin) => {
-      const box = await Box.findOne({ owner: admin._id, type: 'admin' });
-      
+      const box = await Box.findOne({ owner: admin._id, type: 'admin', entity: entityId });
       return {
         userId: admin._id,
         userName: admin.name,
@@ -226,60 +223,37 @@ router.post('/box/decrease', checkPermission('Edit_CashBox'), async (req, res) =
 
   try {
     const { adminId, amount, description, toBoxId } = req.body;
+    const entityId = req.entity._id;
 
-    if (!adminId || !amount || !toBoxId) {
-      return res.status(400).json({ message: 'Admin ID, amount, and destination box ID are required' });
-    }
+    const [fromBox, toBox] = await Promise.all([
+      Box.findOne({ owner: adminId, type: 'admin', entity: entityId }).session(session),
+      Box.findOne({ _id: toBoxId, entity: entityId }).session(session)
+    ]);
 
-    const admin = await Admin.findById(adminId).session(session);
-    if (!admin) {
+    if (!fromBox || !toBox) {
       await session.abortTransaction();
-      return res.status(404).json({ message: 'Admin not found' });
-    }
-
-    const fromBox = await Box.findOne({ owner: adminId, type: 'admin' }).session(session);
-    if (!fromBox) {
-      await session.abortTransaction();
-      return res.status(404).json({ message: 'Box not found for this admin' });
-    }
-
-    const toBox = await Box.findById(toBoxId).session(session);
-    if (!toBox) {
-      await session.abortTransaction();
-      return res.status(404).json({ message: 'Destination box not found' });
-    }
-
-    if (!fromBox.isActive || !toBox.isActive) {
-      await session.abortTransaction();
-      return res.status(400).json({ message: 'One or both boxes are inactive' });
+      return res.status(404).json({ message: 'One or both boxes not found or do not belong to this entity' });
     }
 
     const decreaseAmount = Number(amount);
-    if (isNaN(decreaseAmount) || decreaseAmount <= 0) {
+    if (isNaN(decreaseAmount) || decreaseAmount <= 0 || fromBox.balance < decreaseAmount) {
       await session.abortTransaction();
-      return res.status(400).json({ message: 'Invalid amount' });
+      return res.status(400).json({ message: 'Invalid amount or insufficient funds' });
     }
 
-    if (fromBox.balance < decreaseAmount) {
-      await session.abortTransaction();
-      return res.status(400).json({ message: 'Insufficient funds in box' });
-    }
-
-    // Create a transaction
     const transaction = new TransBox({
       fromBox: fromBox._id,
       toBox: toBox._id,
       amount: decreaseAmount,
       performedBy: req.adminId,
-      description: description || "Transfer between boxes",
-      type: 'transfer'
+      description: description || 'Transfer between boxes',
+      type: 'transfer',
+      entity: entityId
     });
 
-    // Update box balances
     fromBox.balance -= decreaseAmount;
     toBox.balance += decreaseAmount;
 
-    // Save all changes
     await Promise.all([
       transaction.save({ session }),
       fromBox.save({ session }),
@@ -290,9 +264,9 @@ router.post('/box/decrease', checkPermission('Edit_CashBox'), async (req, res) =
 
     res.status(200).json({
       message: 'Amount transferred successfully',
+      transaction,
       fromBox: { id: fromBox._id, newBalance: fromBox.balance },
-      toBox: { id: toBox._id, newBalance: toBox.balance },
-      transaction: transaction
+      toBox: { id: toBox._id, newBalance: toBox.balance }
     });
   } catch (error) {
     await session.abortTransaction();
@@ -303,9 +277,22 @@ router.post('/box/decrease', checkPermission('Edit_CashBox'), async (req, res) =
 });
 
 // Open a cash box
+// تحديث فتح صندوق نقدي ليشمل العملة
 router.post('/cashbox/open', checkPermission('Open_CashBox'), async (req, res) => {
   try {
-    const { boxId, employeeId, initialAmount } = req.body;
+    const { boxId, employeeId, initialAmount, currency } = req.body; // إضافة حقل العملة
+
+    // الحصول على سعر الصرف إذا كانت العملة ليست العملة الأساسية
+    let exchangeRate = 1320;
+    if (currency !== 'IQD') { // افتراض أن 'USD' هي العملة الأساسية
+      const rateDoc = await ExchangeRate.findOne({ currency });
+      if (!rateDoc) {
+        return res.status(400).json({ message: `Exchange rate for currency ${currency} not found` });
+      }
+      exchangeRate = rateDoc.rate;
+    }
+
+    const amountInBaseCurrency = initialAmount * exchangeRate;
 
     const box = await Box.findById(boxId);
     if (!box) {
@@ -323,19 +310,30 @@ router.post('/cashbox/open', checkPermission('Open_CashBox'), async (req, res) =
       isOpen: true,
       openedAt: new Date(),
       initialAmount,
+      currency, // إضافة العملة
+      exchangeRate, // إضافة سعر الصرف
+      amountInBaseCurrency, // إضافة المبلغ المحول للعملة الأساسية
       currentAmount: initialAmount
     });
 
     await newCashBox.save();
 
-    res.status(201).json({
-      message: 'Cash box opened successfully',
-      cashBox: newCashBox
+    // تسجيل النشاط
+    await logActivity({
+      action: 'Open_CashBox',
+      performedBy: req.adminId,
+      targetUser: employeeId,
+      targetItem: newCashBox._id,
+      userType: 'Admin',
+      itemType: 'CashBox'
     });
+
+    res.status(201).json({ message: 'Cash box opened successfully', cashBox: newCashBox });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
 
 // Close a cash box
 router.post('/cashbox/close', checkPermission('Close_CashBox'), async (req, res) => {

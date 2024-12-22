@@ -27,6 +27,34 @@ const Banner = require("./routes/Banner");
 const Reports = require("./routes/Reports");
 const Uploadbulk = require("./routes/UploadBulk");
 const { router: Notification, checkOrdersAndSendReminders, checkItemsAndSendReminders } = require("./routes/Nontification");
+const boxRoutes = require('./routes/v2/boxes');
+const accountsRoutes = require('./routes/v2/accounts');
+const salesRoutes = require('./routes/v2/sales');
+const purchasesRoutes = require('./routes/v2/purchases');
+const ledgerRoutes = require('./routes/v2/generalLedger');
+const exchangeRateRoutes = require('./routes/v2/exchangeRates');
+const productsRoutes = require('./routes/v2/products');
+const expensesRoutes = require('./routes/v2/expenses');
+const accountsPayableReceivableRoutes = require('./routes/v2/accountsPayableReceivable');
+const taxesRoutes = require('./routes/v2/taxes');
+const reportsRoutes = require('./routes/v2/reports');
+const financialReporting = require('./routes/v2/financialReporting');
+const budgetManagement = require('./routes/v2/budgetManagement');
+const assetManagement = require('./routes/v2/assetManagement');
+const taxManagement = require('./routes/v2/taxManagement');
+const costAccounting = require('./routes/v2/costAccounting');
+// const reconciliationRoutes = require('./routes/v2/reconciliation'); // استيراد المسار الجديد
+const bankStatementRoutes = require('./routes/v2/bankStatements'); // استيراد مسار كشف الحساب البنكي
+const payrollRoutes = require('./routes/v2/payroll'); // استيراد مسار الرواتب
+const employeeRoutes = require('./routes/v2/employees'); // استيراد مسار الموظفين
+const currencyRevaluationRoutes = require('./routes/v2/currencyRevaluation'); // استيراد المسار الجديد
+const activityLogRoutes = require('./routes/v2/activityLogs'); // استيراد المسار الجديد
+const approvalWorkflowsRouter = require('./routes/v2/approvalWorkflows');
+const approvalsRouter = require('./routes/v2/approvals');
+const journalTemplatesRoutes = require('./routes/v2/journalTemplates');
+const entityManagments = require('./routes/v2/entityManagement');
+const FundReq = require('./routes/v2/FundReq');
+
 
 const serverless = require('serverless-http');
 
@@ -95,6 +123,35 @@ app.use("/Banner", Banner);
 app.use("/Reports", Reports);
 app.use("/Uploadbulk", Uploadbulk);
 app.use("/Notification", Notification);
+
+// new ones
+app.use('/api', boxRoutes);
+app.use('/api', accountsRoutes);
+app.use('/api', salesRoutes);
+app.use('/api', purchasesRoutes);
+app.use('/api', ledgerRoutes);
+app.use('/api', exchangeRateRoutes);
+app.use('/api', productsRoutes);
+app.use('/api', expensesRoutes);
+app.use('/api', accountsPayableReceivableRoutes);
+app.use('/api', taxesRoutes);
+app.use('/api', reportsRoutes);
+app.use('/api/financial', financialReporting);
+app.use('/api/budget', budgetManagement);
+app.use('/api/assets', assetManagement);
+app.use('/api/tax', taxManagement);
+app.use('/api/cost', costAccounting);
+app.use('/api', journalTemplatesRoutes);
+app.use('/api', payrollRoutes);
+app.use('/api', employeeRoutes);
+app.use('/api', bankStatementRoutes);
+app.use('/api', currencyRevaluationRoutes);
+app.use('/api', activityLogRoutes);
+app.use('/api', approvalWorkflowsRouter);
+app.use('/api', approvalsRouter);
+app.use('/api', entityManagments);
+app.use('/api/FundReq', FundReq);
+
 
 // Lambda function handler
 module.exports.handler = (event, context, callback) => {

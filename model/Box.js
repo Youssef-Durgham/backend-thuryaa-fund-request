@@ -1,6 +1,7 @@
 // models/Box.js
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
+const entityPlugin = require('../utils/entityPlugin');
 
 const boxSchema = new Schema({
   name: { type: String, required: true },
@@ -11,6 +12,8 @@ const boxSchema = new Schema({
   owner: { type: Schema.Types.ObjectId, ref: 'Admin' },  // Reference to the admin who owns this box
   isActive: { type: Boolean, default: true }
 }, { timestamps: true });
+
+boxSchema.plugin(entityPlugin);
 
 const Box = mongoose.model('Box', boxSchema);
 module.exports = Box;

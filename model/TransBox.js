@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
+const entityPlugin = require('../utils/entityPlugin');
 
 const TransBoxSchema = new Schema({
     fromBox: { type: Schema.Types.ObjectId, ref: 'Box' },
@@ -9,6 +10,8 @@ const TransBoxSchema = new Schema({
     description: { type: String },
     type: { type: String, enum: ['transfer', 'deposit', 'withdrawal'], required: true }
   }, { timestamps: true });
+
+  TransBoxSchema.plugin(entityPlugin);
 
 const TransBox = mongoose.model('TransBox', TransBoxSchema);
 module.exports = TransBox;

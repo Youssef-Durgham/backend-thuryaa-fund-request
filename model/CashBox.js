@@ -1,6 +1,7 @@
 // models/CashBox.js
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
+const entityPlugin = require('../utils/entityPlugin');
 
 const cashBoxSchema = new Schema({
   box: { type: Schema.Types.ObjectId, ref: 'Box', required: true },
@@ -12,6 +13,8 @@ const cashBoxSchema = new Schema({
   currentAmount: { type: Number, default: 0 },
   transactions: [{ type: Schema.Types.ObjectId, ref: 'Transaction' }]
 }, { timestamps: true });
+
+cashBoxSchema.plugin(entityPlugin);
 
 const CashBox = mongoose.model('CashBox', cashBoxSchema);
 

@@ -14,12 +14,23 @@ const checkPermission = (permission) => {
     try {
       const token = req.headers.authorization.split(' ')[1];
       console.log(token);
-      
+
       const decoded = jwt.verify(token, 'your_jwt_secret');
       console.log(decoded);
-      console.log(permission, token, decoded);
 
+      // Find the admin user
       const admin = await Admin.findById(decoded.id).populate('roles');
+
+      if (!admin) {
+        return res.status(401).json({ message: 'Unauthorized: User not found' });
+      }
+
+      // If the user is a System user, bypass permission checks
+      if (admin.type === 'System') {
+        console.log('System user detected. Bypassing permission checks.');
+        req.adminId = decoded.id; // Store the admin ID in the request object
+        return next();
+      }
 
       // Check permissions in directly assigned roles
       const hasPermission = admin.roles.some(role =>
@@ -29,7 +40,7 @@ const checkPermission = (permission) => {
       console.log(permission, token, decoded, admin, hasPermission);
 
       if (!hasPermission) {
-        return res.status(403).json({ message: 'Forbidden' });
+        return res.status(403).json({ message: 'Forbidden: Insufficient permissions' });
       }
 
       req.adminId = decoded.id; // Store the admin ID in the request object
@@ -42,31 +53,41 @@ const checkPermission = (permission) => {
   };
 };
 
+
 // Get Admin User List
 router.get('/admin-users-list', checkPermission('List_Admin_Users'), async (req, res) => {
-  const { page = 1 } = req.query; // Default to page 1 if not specified
+  const { page = 1 } = req.query;
 
-  const limit = 50; // Entries per page
+  const limit = 50;
   const skip = (page - 1) * limit;
 
   try {
     const admins = await Admin.find()
-                              .populate('roles')
-                              .skip(skip)
-                              .limit(limit)
-                              .sort({ name: 1 }); // Optional: Sort by name ascending
+      .populate('roles')
+      .populate('entities', 'name') // Populate entity names
+      .skip(skip)
+      .limit(limit)
+      .sort({ name: 1 });
 
     const totalAdmins = await Admin.countDocuments();
     const totalPages = Math.ceil(totalAdmins / limit);
 
+    const adminsWithEntities = admins.map((admin) => ({
+      ...admin.toObject(),
+      entities: admin.entities.map((entity) => ({
+        id: entity._id,
+        name: entity.name,
+      })),
+    }));
+
     res.status(200).json({
-      admins,
+      admins: adminsWithEntities,
       currentPage: page,
       totalPages,
-      totalAdmins
+      totalAdmins,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 

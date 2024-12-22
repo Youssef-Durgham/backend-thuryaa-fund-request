@@ -3,7 +3,7 @@ const Schema = mongoose.Schema;
 
 const roleSchema = new Schema({
   name: { type: String, required: true, unique: true },
-  permissions: { type: [String], default: [] } // Make permissions optional and default to an empty array
+  permissions: { type: [String], default: [] }
 });
 
 const groupSchema = new Schema({

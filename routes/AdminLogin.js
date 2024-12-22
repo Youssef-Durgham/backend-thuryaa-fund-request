@@ -5,6 +5,8 @@ const { Admin } = require('../model/Users'); // Adjust the path as needed
 const LoginHistory = require('../model/LoginHistory');
 const ActivityLog = require('../model/ActivityLog');
 const { RoleGroup, Role } = require('../model/Role');
+const mongoose = require('mongoose');
+const JWT_SECRET = 'your_jwt_secret';
 
 const router = express.Router();
 
@@ -20,12 +22,23 @@ const checkPermission = (permission) => {
     try {
       const token = req.headers.authorization.split(' ')[1];
       console.log(token);
-      
+
       const decoded = jwt.verify(token, 'your_jwt_secret');
       console.log(decoded);
-      console.log(permission, token, decoded);
 
+      // Find the admin user
       const admin = await Admin.findById(decoded.id).populate('roles');
+
+      if (!admin) {
+        return res.status(401).json({ message: 'Unauthorized: User not found' });
+      }
+
+      // If the user is a System user, bypass permission checks
+      if (admin.type === 'System') {
+        console.log('System user detected. Bypassing permission checks.');
+        req.adminId = decoded.id; // Store the admin ID in the request object
+        return next();
+      }
 
       // Check permissions in directly assigned roles
       const hasPermission = admin.roles.some(role =>
@@ -35,7 +48,7 @@ const checkPermission = (permission) => {
       console.log(permission, token, decoded, admin, hasPermission);
 
       if (!hasPermission) {
-        return res.status(403).json({ message: 'Forbidden' });
+        return res.status(403).json({ message: 'Forbidden: Insufficient permissions' });
       }
 
       req.adminId = decoded.id; // Store the admin ID in the request object
@@ -50,13 +63,13 @@ const checkPermission = (permission) => {
 
 // Create admin account
 router.post('/create-admin/sys', checkPermission('Create_admin'), async (req, res) => {
-  const { phone, name, password, email } = req.body;
+  const { phone, name, password, email, type } = req.body;
   try {
     let admin = await Admin.findOne({ phone });
     if (admin) {
       return res.status(400).json({ message: 'Admin already exists' });
     }
-    admin = new Admin({ phone, name, password, email });
+    admin = new Admin({ phone, name, password, email, type });
     await admin.save();
     res.status(201).json({ message: 'Admin created successfully', admin });
   } catch (error) {
@@ -79,7 +92,8 @@ router.post('/add-role/sys', async (req, res) => {
       action: 'add_role',
       performedBy: 'system', // Hardcoded since it's system level
       targetUser: role._id,
-      userType: 'system'
+      userType: 'System',
+      itemType: 'Admin-Activitys'
     });
     await activityLog.save();
 
@@ -104,7 +118,8 @@ router.post('/add-role-group/sys', async (req, res) => {
       action: 'add_role_group',
       performedBy: 'system', // Hardcoded since it's system level
       targetUser: roleGroup._id,
-      userType: 'system'
+      userType: 'System',
+      itemType: 'Admin-Activitys'
     });
     await activityLog.save();
 
@@ -134,7 +149,8 @@ router.post('/assign-role-to-group/sys', checkPermission('assign_roles'), async 
       action: 'assign_role_to_group',
       performedBy: req.adminId,
       targetUser: roleGroup._id,
-      userType: 'system'
+      userType: 'System',
+      itemType: 'Admin-Activitys'
     });
     await activityLog.save();
 
@@ -161,7 +177,8 @@ router.post('/assign-role-to-group', checkPermission('assign_roles'), async (req
       action: 'assign_role_to_group',
       performedBy: req.adminId,
       targetUser: roleGroup._id,
-      userType: 'system'
+      userType: 'System',
+      itemType: 'Admin-Activitys'
     });
     await activityLog.save();
 
@@ -191,7 +208,8 @@ router.post('/assign-role-group-direct', async (req, res) => {
       action: 'assign_role_group',
       performedBy: 'system',
       targetUser: admin._id,
-      userType: 'system'
+      userType: 'System',
+      itemType: 'Admin-Activitys'
     });
     await activityLog.save();
 
@@ -219,47 +237,84 @@ router.post('/register/admin', async (req, res) => {
 
 // Admin login
 router.post('/login/admin', async (req, res) => {
-    const { phone, password, newPassword } = req.body;
-    try {
-      const admin = await Admin.findOne({ phone });
-      if (!admin || !(await bcrypt.compare(password, admin.password))) {
-        return res.status(400).json({ message: 'Invalid phone or password' });
+  const { phone, password, newPassword } = req.body;
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  let transactionCommitted = false;
+
+  try {
+    const admin = await Admin.findOne({ phone })
+      .populate('entities')
+      .populate('roles')
+      .session(session);
+
+    if (!admin || !(await bcrypt.compare(password, admin.password))) {
+      throw new Error('Invalid phone or password');
+    }
+
+    // Handle password change if required
+    if (admin.forcePasswordChange) {
+      if (!newPassword) {
+        throw new Error('Password change required');
       }
-      if (admin.forcePasswordChange && newPassword) {
-        if (await bcrypt.compare(newPassword, admin.oldPassword)) {
-          return res.status(400).json({ message: 'New password cannot be the same as the old password' });
-        }
-        admin.oldPassword = admin.password;
-        admin.password = await bcrypt.hash(newPassword, 10);
-        admin.forcePasswordChange = false;
-        await admin.save();
-      } else if (admin.forcePasswordChange) {
-        return res.status(403).json({ message: 'Password change required' });
+      if (await bcrypt.compare(newPassword, admin.oldPassword)) {
+        throw new Error('New password cannot be same as old password');
       }
-  
-      const token = jwt.sign({ id: admin._id, userType: 'admin', phone: admin.phone, name:admin.name }, 'your_jwt_secret', { expiresIn: '365d' });
-  
-      // Log the login
-      const loginHistory = new LoginHistory({
+      admin.oldPassword = admin.password;
+      admin.password = await bcrypt.hash(newPassword, 10);
+      admin.forcePasswordChange = false;
+    }
+
+    await admin.save({ session });
+
+    const token = jwt.sign({
+      id: admin._id,
+      userType: 'admin',
+      phone: admin.phone,
+      name: admin.name,
+    }, JWT_SECRET, { expiresIn: '365d' });
+
+    // Log the login
+    await Promise.all([
+      new LoginHistory({
         userId: admin._id,
-        ipAddress: req.ip
-      });
-      await loginHistory.save();
-  
-      // Log the activity
-      const activityLog = new ActivityLog({
+        ipAddress: req.ip,
+      }).save({ session }),
+
+      new ActivityLog({
         action: 'login',
         performedBy: admin._id,
         targetUser: admin._id,
-        userType: 'Admin'
-      });
-      await activityLog.save();
-  
-      res.status(200).json({ token });
-    } catch (error) {
-      res.status(500).json({ message: 'Server error', error });
+        userType: 'System',
+        itemType: 'Admin-Activitys'
+      }).save({ session })
+    ]);
+
+    await session.commitTransaction();
+    transactionCommitted = true;
+
+    res.status(200).json({
+      token,
+      // entities: activeEntities, // Uncomment if activeEntities logic is added back
+      // currentEntity: await Entity.findById(admin.currentEntity), // Uncomment if currentEntity is required
+      user: {
+        id: admin._id,
+        name: admin.name,
+        phone: admin.phone,
+        roles: admin.roles
+      }
+    });
+  } catch (error) {
+    if (!transactionCommitted) {
+      await session.abortTransaction();
     }
-  });
+    res.status(500).json({ message: error.message });
+  } finally {
+    session.endSession();
+  }
+});
+
 
 // Reset admin password
 router.post('/reset-password', async (req, res) => {
@@ -279,7 +334,8 @@ router.post('/reset-password', async (req, res) => {
         action: 'reset_password',
         performedBy: 'reset_password',
         targetUser: admin._id,
-        userType: 'Admin'
+        userType: 'System',
+        itemType: 'Admin-Activitys'
       });
       await activityLog.save();
   
