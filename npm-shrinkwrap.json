@@ -21,7 +21,7 @@
         "mongoose": "7.5.3",
         "mongoose-auto-increment": "^5.0.1",
         "nanoid": "^5.0.7",
-        "nodemailer": "^6.9.15",
+        "nodemailer": "^6.9.16",
         "request": "^2.88.2",
         "serverless-http": "^3.2.0",
         "uuid": "^9.0.1"
@@ -2226,9 +2226,10 @@
       }
     },
     "node_modules/nodemailer": {
-      "version": "6.9.15",
-      "resolved": "https://registry.npmjs.org/nodemailer/-/nodemailer-6.9.15.tgz",
-      "integrity": "sha512-AHf04ySLC6CIfuRtRiEYtGEXgRfa6INgWGluDhnxTZhHSKvrBu7lc1VVchQ0d8nPc4cFaZoPq8vkyNoZr0TpGQ==",
+      "version": "6.9.16",
+      "resolved": "https://registry.npmjs.org/nodemailer/-/nodemailer-6.9.16.tgz",
+      "integrity": "sha512-psAuZdTIRN08HKVd/E8ObdV6NO7NTBY3KsC30F7M4H1OnmLCUNaS56FpYxyb26zWLSyYF9Ozch9KYHhHegsiOQ==",
+      "license": "MIT-0",
       "engines": {
         "node": ">=6.0.0"
       }

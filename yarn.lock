@@ -1611,10 +1611,10 @@ node-uuid@~1.4.0:
   resolved "https://registry.npmjs.org/node-uuid/-/node-uuid-1.4.8.tgz"
   integrity sha512-TkCET/3rr9mUuRp+CpO7qfgT++aAxfDRaalQhwPFzI9BY/2rCDn6OfpZOVggi1AXfTPpfkTrg5f5WQx5G1uLxA==
 
-nodemailer@^6.9.15:
-  version "6.9.15"
-  resolved "https://registry.npmjs.org/nodemailer/-/nodemailer-6.9.15.tgz"
-  integrity sha512-AHf04ySLC6CIfuRtRiEYtGEXgRfa6INgWGluDhnxTZhHSKvrBu7lc1VVchQ0d8nPc4cFaZoPq8vkyNoZr0TpGQ==
+nodemailer@^6.9.16:
+  version "6.9.16"
+  resolved "https://registry.npmjs.org/nodemailer/-/nodemailer-6.9.16.tgz"
+  integrity sha512-psAuZdTIRN08HKVd/E8ObdV6NO7NTBY3KsC30F7M4H1OnmLCUNaS56FpYxyb26zWLSyYF9Ozch9KYHhHegsiOQ==
 
 nopt@^5.0.0:
   version "5.0.0"

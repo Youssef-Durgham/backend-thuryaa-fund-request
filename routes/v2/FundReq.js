@@ -170,6 +170,7 @@ router.post('/fund-requests/:workflowId/approve', checkPermission('Approve_FundR
       await fundRequest.save({ session });
 
       const requester = await Admin.findById(fundRequest.requestedBy);
+      console.log(requester)
       if (requester) {
         await sendEmailNotification({
           to: requester.email,
@@ -229,6 +230,7 @@ router.post('/fund-requests/:workflowId/reject', checkPermission('Reject_FundReq
     currentStep.approvedAt = new Date();
 
     const previousStep = workflow.steps.find(step => step.level === workflow.currentLevel - 1);
+    console.log(previousStep)
     if (previousStep) {
       workflow.currentLevel -= 1;
 
@@ -263,6 +265,7 @@ router.post('/fund-requests/:workflowId/reject', checkPermission('Reject_FundReq
 
     res.status(200).json({ message: 'Fund request rejected successfully and returned to the previous step.', workflow });
   } catch (error) {
+    console.log(error);
     await session.abortTransaction();
     session.endSession();
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -270,55 +273,80 @@ router.post('/fund-requests/:workflowId/reject', checkPermission('Reject_FundReq
 });
 
 // Cancel Fund Request
-router.post('/fund-requests/:workflowId/cancel', checkPermission('Cancel_FundRequest'), async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
-    const { workflowId } = req.params;
+router.post(
+  '/fund-requests/:workflowId/cancel',
+  checkPermission('Cancel_FundRequest'),
+  async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      const { workflowId } = req.params;
 
-    const workflow = await ApprovalWorkflow.findById(workflowId).session(session);
-    if (!workflow) {
-      throw new Error('Workflow not found.');
+      const workflow = await ApprovalWorkflow.findById(workflowId).session(session);
+      if (!workflow) {
+        throw new Error('Workflow not found.');
+      }
+
+      const fundRequest = await FundRequest.findById(workflow.transactionId).session(session);
+      if (!fundRequest) {
+        throw new Error('Fund request not found.');
+      }
+
+      // Only the requester can cancel
+      if (fundRequest.requestedBy.toString() !== req.adminId) {
+        throw new Error('Only the requester can cancel this fund request.');
+      }
+
+      // Only pending requests can be canceled
+      if (fundRequest.status !== 'Pending') {
+        throw new Error('Only pending fund requests can be canceled.');
+      }
+
+      // Mark both the workflow and the fund request as Canceled
+      workflow.status = 'Canceled';
+      fundRequest.status = 'Canceled';
+
+      // Also update the current step: set status, set who canceled, and when
+      const currentStep = workflow.steps.find(
+        (step) => step.level === workflow.currentLevel
+      );
+      if (!currentStep) {
+        throw new Error('No current step found in the workflow.');
+      }
+      currentStep.status = 'Canceled';
+      currentStep.approvedBy = req.adminId;    // The user who canceled
+      currentStep.approvedAt = new Date();     // The time of cancellation
+
+      // Save
+      await workflow.save({ session });
+      await fundRequest.save({ session });
+
+      // Log activity
+      await logActivity({
+        action: 'Cancel_FundRequest',
+        performedBy: req.adminId,
+        targetItem: workflow._id,
+        itemType: 'FundRequest',
+        userType: 'Admin',
+        description: 'Canceled fund request',
+      });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      return res.status(200).json({
+        message: 'Fund request canceled successfully.',
+        workflow,
+        fundRequest,
+      });
+    } catch (error) {
+      console.log(error);
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(500).json({ message: 'Server error', error: error.message });
     }
-
-    const fundRequest = await FundRequest.findById(workflow.transactionId).session(session);
-    if (!fundRequest) {
-      throw new Error('Fund request not found.');
-    }
-
-    if (fundRequest.requestedBy.toString() !== req.adminId) {
-      throw new Error('Only the requester can cancel this fund request.');
-    }
-
-    if (fundRequest.status !== 'Pending') {
-      throw new Error('Only pending fund requests can be canceled.');
-    }
-
-    workflow.status = 'Canceled';
-    fundRequest.status = 'Canceled';
-
-    await workflow.save({ session });
-    await fundRequest.save({ session });
-
-    await logActivity({
-      action: 'Cancel_FundRequest',
-      performedBy: req.adminId,
-      targetItem: workflow._id,
-      itemType: 'FundRequest',
-      userType: 'Admin',
-      description: 'Canceled fund request'
-    });
-
-    await session.commitTransaction();
-    session.endSession();
-
-    res.status(200).json({ message: 'Fund request canceled successfully.', workflow, fundRequest });
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    res.status(500).json({ message: 'Server error', error: error.message });
   }
-});
+);
 
 router.get('/fund-requests/:id', checkPermission('View_FundRequest'), async (req, res) => {
   try {
@@ -648,6 +676,3 @@ router.post('/assigned-workflows/:workflowId/remove-user', checkPermission('Mana
 });
 
 module.exports = router;
-
-
-

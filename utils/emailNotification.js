@@ -2,20 +2,21 @@ const nodemailer = require('nodemailer');
 
 // Configure the email transporter
 const transporter = nodemailer.createTransport({
-  host: 'smtp.example.com', // Replace with your SMTP host
-  port: 587, // Replace with your SMTP port
-  secure: false, // Use true for 465 (SSL), false for other ports
+  host: 'smtpout.secureserver.net',
+  port: 465,
+  secure: true,
   auth: {
-    user: 'your-email@example.com', // Replace with your SMTP username
-    pass: 'your-email-password', // Replace with your SMTP password
-  },
+    user: "info@spc-it.com.iq",
+    pass: "AltShiftDel123"
+  }
 });
 
 
 const sendEmailNotification = async ({ to, subject, body }) => {
+  console.log(to, subject, body)
   try {
     const mailOptions = {
-      from: '"Your App Name" <your-email@example.com>', // Replace with your app's email
+      from: '"Spc" <info@spc-it.com.iq>',
       to,
       subject,
       text: body,
@@ -26,7 +27,7 @@ const sendEmailNotification = async ({ to, subject, body }) => {
 
     console.log(`Email sent successfully to ${to}`);
   } catch (error) {
-    console.error(`Failed to send email to ${to}:`, error.message);
+    console.log(`Failed to send email to ${to}:`, error.message);
     throw new Error('Failed to send email notification.');
   }
 };

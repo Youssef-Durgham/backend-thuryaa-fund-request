@@ -16,7 +16,7 @@
     "mongoose": "7.5.3",
     "mongoose-auto-increment": "^5.0.1",
     "nanoid": "^5.0.7",
-    "nodemailer": "^6.9.15",
+    "nodemailer": "^6.9.16",
     "request": "^2.88.2",
     "serverless-http": "^3.2.0",
     "uuid": "^9.0.1"
