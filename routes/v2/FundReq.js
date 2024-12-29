@@ -72,25 +72,23 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
   session.startTransaction();
   try {
     const { workflowId } = req.params;
-    const { description, amount, requestedBy, details } = req.body;
+    const { description, amount, requestedBy, details, documents } = req.body;
 
-    // Create the fund request
     const fundRequest = new FundRequest({
       description,
       amount,
       requestedBy,
       details,
+      documents, // Add document URLs here
       status: 'Pending'
     });
     await fundRequest.save({ session });
 
-    // Retrieve assigned workflow by ID
     const assignedWorkflow = await AssignedWorkflow.findById(workflowId);
     if (!assignedWorkflow) {
       throw new Error('Assigned workflow not found.');
     }
 
-    // Create the workflow
     const workflow = new ApprovalWorkflow({
       transactionType: assignedWorkflow.transactionType,
       transactionId: fundRequest._id,
@@ -127,78 +125,98 @@ router.post('/fund-requests/:workflowId/approve', checkPermission('Approve_FundR
   session.startTransaction();
   try {
     const { workflowId } = req.params;
-    const { comments } = req.body;
+    const { comments } = req.body; // Extract comments from the request body
+    const adminId = req.adminId; // Ensure adminId is available
+
+    console.log(`[Approve] Admin ID: ${adminId} is attempting to approve workflow ID: ${workflowId}`);
 
     const workflow = await ApprovalWorkflow.findById(workflowId)
       .populate('steps.approvers', 'email name')
       .session(session);
 
     if (!workflow) {
+      console.error(`[Approve] Workflow not found for ID: ${workflowId}`);
       throw new Error('Workflow not found.');
     }
 
     if (workflow.status !== 'Pending') {
+      console.error(`[Approve] Workflow ID: ${workflowId} is not pending. Current status: ${workflow.status}`);
       throw new Error('Workflow is not pending.');
     }
 
     const currentStep = workflow.steps.find(step => step.level === workflow.currentLevel);
     if (!currentStep) {
+      console.error(`[Approve] No current approval step found for workflow ID: ${workflowId}`);
       throw new Error('No current approval step found.');
     }
 
     // Ensure the approver is part of the current step
-    const isApprover = currentStep.approvers.some(approver => approver._id.toString() === req.adminId);
+    const isApprover = currentStep.approvers.some(approver => approver._id.toString() === adminId);
     if (!isApprover) {
+      console.error(`[Approve] Admin ID: ${adminId} is not an approver for the current step.`);
       throw new Error('You are not an approver for this step.');
     }
 
-    // Mark the current step as approved if any approver approves
+    console.log(`[Approve] Admin ID: ${adminId} is approved at step level ${currentStep.level}`);
+
+    // Mark the current step as approved
     currentStep.status = 'Approved';
-    currentStep.approvedBy = req.adminId;
+    currentStep.approvedBy = adminId;
     currentStep.approvedAt = new Date();
+    currentStep.comments = comments; // Save the comments
 
     // Move to the next step
     const nextStep = workflow.steps.find(step => step.level === workflow.currentLevel + 1);
     if (nextStep) {
       workflow.currentLevel += 1;
+      console.log(`[Approve] Moving to next step level: ${workflow.currentLevel} for workflow ID: ${workflowId}`);
     } else {
       // Mark the entire workflow as approved if this is the last step
       workflow.status = 'Approved';
+      console.log(`[Approve] Workflow ID: ${workflowId} is fully approved.`);
 
       const fundRequest = await FundRequest.findById(workflow.transactionId).session(session);
       fundRequest.status = 'Approved';
       await fundRequest.save({ session });
+      console.log(`[Approve] FundRequest ID: ${fundRequest._id} status updated to Approved.`);
 
       const requester = await Admin.findById(fundRequest.requestedBy);
-      console.log(requester)
+      console.log("here is the requester", requester)
       if (requester) {
+        console.log(`[Approve] Sending approval completion email to: ${requester.email}`);
         await sendEmailNotification({
           to: requester.email,
           subject: 'Fund Request Completed',
           body: `Dear ${requester.name},\n\nYour fund request has been approved and is now completed.\n\nBest regards,\nYour Team`
         });
+        console.log(`[Approve] Approval completion email sent to: ${requester.email}`);
+      } else {
+        console.error(`[Approve] Requester not found for FundRequest ID: ${fundRequest._id}`);
       }
     }
 
     await workflow.save({ session });
+    console.log(`[Approve] Workflow ID: ${workflowId} saved successfully.`);
 
     await logActivity({
       action: 'Approve_FundRequest',
-      performedBy: req.adminId,
+      performedBy: adminId,
       targetItem: workflow._id,
       itemType: 'FundRequest',
       userType: 'Admin',
-      description: `Approved fund request at step level ${currentStep.level}`
+      description: `Approved fund request at step level ${currentStep.level} with comments: "${comments}"`
     });
+    console.log(`[Approve] Activity logged for workflow ID: ${workflowId}`);
 
     await session.commitTransaction();
     session.endSession();
+    console.log(`[Approve] Transaction committed for workflow ID: ${workflowId}`);
 
     res.status(200).json({ message: 'Fund request approved successfully.', workflow });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    console.error(error);
+    console.error(`[Approve] Error approving workflow ID: ${req.params.workflowId}:`, error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -209,65 +227,91 @@ router.post('/fund-requests/:workflowId/reject', checkPermission('Reject_FundReq
   session.startTransaction();
   try {
     const { workflowId } = req.params;
-    const { comments } = req.body;
+    const { comments } = req.body; // Extract comments from the request body
+    const adminId = req.adminId; // Ensure adminId is available
 
-    const workflow = await ApprovalWorkflow.findById(workflowId).populate('steps.approvers', 'email name').session(session);
+    console.log(`[Reject] Admin ID: ${adminId} is attempting to reject workflow ID: ${workflowId}`);
+
+    const workflow = await ApprovalWorkflow.findById(workflowId)
+      .populate('steps.approvers', 'email name')
+      .session(session);
     if (!workflow) {
+      console.error(`[Reject] Workflow not found for ID: ${workflowId}`);
       throw new Error('Workflow not found.');
     }
 
     if (workflow.status !== 'Pending') {
+      console.error(`[Reject] Workflow ID: ${workflowId} is not pending. Current status: ${workflow.status}`);
       throw new Error('Workflow is not pending.');
     }
 
     const currentStep = workflow.steps.find(step => step.level === workflow.currentLevel);
     if (!currentStep) {
+      console.error(`[Reject] No current approval step found for workflow ID: ${workflowId}`);
       throw new Error('No current approval step found.');
     }
 
+    // Ensure the approver is part of the current step
+    const isApprover = currentStep.approvers.some(approver => approver._id.toString() === adminId);
+    if (!isApprover) {
+      console.error(`[Reject] Admin ID: ${adminId} is not an approver for the current step.`);
+      throw new Error('You are not an approver for this step.');
+    }
+
+    console.log(`[Reject] Admin ID: ${adminId} is rejecting at step level ${currentStep.level}`);
+
+    // Mark the current step as rejected
     currentStep.status = 'Rejected';
-    currentStep.approvedBy = req.adminId;
+    currentStep.approvedBy = adminId;
     currentStep.approvedAt = new Date();
+    currentStep.comments = comments; // Save the comments
 
     const previousStep = workflow.steps.find(step => step.level === workflow.currentLevel - 1);
-    console.log(previousStep)
     if (previousStep) {
       workflow.currentLevel -= 1;
+      console.log(`[Reject] Returning to previous step level: ${workflow.currentLevel} for workflow ID: ${workflowId}`);
 
       for (const approver of previousStep.approvers) {
+        console.log(`[Reject] Sending rejection email to approver: ${approver.email}`);
         await sendEmailNotification({
           to: approver.email,
           subject: 'Action Required: Fund Request Rejected',
           body: `Dear ${approver.name},\n\nThe fund request has been rejected at level ${workflow.currentLevel + 1}. It has returned to your level for further action. Please log in to the system to review and take necessary steps.\n\nBest regards,\nYour Team`
         });
+        console.log(`[Reject] Rejection email sent to: ${approver.email}`);
       }
     } else {
       workflow.status = 'Rejected';
+      console.log(`[Reject] Workflow ID: ${workflowId} is fully rejected.`);
 
       const fundRequest = await FundRequest.findById(workflow.transactionId).session(session);
       fundRequest.status = 'Rejected';
       await fundRequest.save({ session });
+      console.log(`[Reject] FundRequest ID: ${fundRequest._id} status updated to Rejected.`);
     }
 
     await workflow.save({ session });
+    console.log(`[Reject] Workflow ID: ${workflowId} saved successfully.`);
 
     await logActivity({
       action: 'Reject_FundRequest',
-      performedBy: req.adminId,
+      performedBy: adminId,
       targetItem: workflow._id,
       itemType: 'FundRequest',
       userType: 'Admin',
-      description: 'Rejected fund request and moved back to previous step'
+      description: `Rejected fund request at step level ${currentStep.level} with comments: "${comments}"`
     });
+    console.log(`[Reject] Activity logged for workflow ID: ${workflowId}`);
 
     await session.commitTransaction();
     session.endSession();
+    console.log(`[Reject] Transaction committed for workflow ID: ${workflowId}`);
 
     res.status(200).json({ message: 'Fund request rejected successfully and returned to the previous step.', workflow });
   } catch (error) {
-    console.log(error);
     await session.abortTransaction();
     session.endSession();
+    console.error(`[Reject] Error rejecting workflow ID: ${req.params.workflowId}:`, error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -361,6 +405,8 @@ router.get('/fund-requests/:id', checkPermission('View_FundRequest'), async (req
       return res.status(404).json({ message: 'Fund request not found.' });
     }
 
+    console.log('Fund Request Retrieved:', fundRequest); // Debugging
+
     // Fetch the workflow associated with the fund request
     const workflow = await ApprovalWorkflow.findOne({ transactionId: id })
       .populate('steps.approvers', 'name email') // Populate approvers for each step
@@ -369,6 +415,8 @@ router.get('/fund-requests/:id', checkPermission('View_FundRequest'), async (req
     if (!workflow) {
       return res.status(404).json({ message: 'Workflow not found for this fund request.' });
     }
+
+    console.log('Associated Workflow:', workflow); // Debugging
 
     const response = {
       fundRequest,

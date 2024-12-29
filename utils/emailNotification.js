@@ -7,13 +7,21 @@ const transporter = nodemailer.createTransport({
   secure: true,
   auth: {
     user: "info@spc-it.com.iq",
-    pass: "AltShiftDel123"
+    pass: "AltShiftDel123" // Ensure this password is correct and has necessary permissions
   }
 });
 
+// Verify transporter configuration on startup
+transporter.verify(function(error, success) {
+  if (error) {
+    console.error('Error configuring email transporter:', error);
+  } else {
+    console.log('Email transporter is configured and ready to send emails.');
+  }
+});
 
 const sendEmailNotification = async ({ to, subject, body }) => {
-  console.log(to, subject, body)
+  console.log(`[Email] Preparing to send email to: ${to}, Subject: "${subject}"`);
   try {
     const mailOptions = {
       from: '"Spc" <info@spc-it.com.iq>',
@@ -25,9 +33,9 @@ const sendEmailNotification = async ({ to, subject, body }) => {
     // Send the email
     await transporter.sendMail(mailOptions);
 
-    console.log(`Email sent successfully to ${to}`);
+    console.log(`[Email] Email sent successfully to ${to}`);
   } catch (error) {
-    console.log(`Failed to send email to ${to}:`, error.message);
+    console.error(`[Email] Failed to send email to ${to}:`, error.message);
     throw new Error('Failed to send email notification.');
   }
 };

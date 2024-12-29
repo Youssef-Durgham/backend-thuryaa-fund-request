@@ -10,7 +10,8 @@ const approvalWorkflowSchema = new mongoose.Schema({
     approvers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Admin' }],
     status: { type: String, enum: ['Pending', 'Approved', 'Rejected', 'Canceled'], default: 'Pending' },
     approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
-    approvedAt: { type: Date }
+    approvedAt: { type: Date },
+    comments: { type: String }
   }],
   currentLevel: { type: Number, default: 1 },
   status: { type: String, enum: ['Pending', 'Approved', 'Rejected', 'Canceled'], default: 'Pending' },

@@ -124,7 +124,7 @@
             "Properties": {
               "Code": {
                 "S3Bucket": "serverless-framework-deployments-me-south-1-de4ae50a-c18d",
-                "S3Key": "serverless/po/dev/1734962034235-2024-12-23T13:53:54.235Z/po.zip"
+                "S3Key": "serverless/po/dev/1735480979422-2024-12-29T14:02:59.422Z/po.zip"
               },
               "Handler": "index.handler",
               "Runtime": "nodejs18.x",
@@ -243,7 +243,7 @@
               "MainLambdaPermissionApiGateway"
             ]
           },
-          "ApiGatewayDeployment1734962022148": {
+          "ApiGatewayDeployment1735480968289": {
             "Type": "AWS::ApiGateway::Deployment",
             "Properties": {
               "RestApiId": {
@@ -595,7 +595,7 @@
     "artifact": "/Volumes/programming_folders/redia_projects/wf po/backend/.serverless/po.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/po/dev/1734962034235-2024-12-23T13:53:54.235Z",
+    "artifactDirectoryName": "serverless/po/dev/1735480979422-2024-12-29T14:02:59.422Z",
     "artifact": "po.zip"
   }
 }
