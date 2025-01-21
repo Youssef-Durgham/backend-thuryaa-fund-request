@@ -5,6 +5,7 @@ provider:
   versionFunctions: false
   runtime: nodejs18.x
   region: me-south-1
+  profile: alrida-company
   memorySize: 3008
   timeout: 300  # Adjusted to 29 seconds to comply with API Gateway limits
   apiGateway:

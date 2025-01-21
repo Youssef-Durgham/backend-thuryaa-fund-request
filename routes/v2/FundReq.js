@@ -75,18 +75,30 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
   session.startTransaction();
   try {
     const { workflowId } = req.params;
-    const { description, amount, requestedBy, details, documents } = req.body;
+    const { description, amount, currency, requestFundType, requestedBy, project, department, details, documents, items, requestDate } = req.body;
+
+    // Validate items array
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'At least one item is required in the fund request.' });
+    }
 
     const fundRequest = new FundRequest({
       description,
       amount,
+      currency,
+      requestFundType,
       requestedBy,
+      project,
+      department,
       details,
-      documents, // Add document URLs here
-      status: 'Pending'
+      documents, // Add document URLs
+      status: 'Pending',
+      items,
+      requestDate: requestDate || Date.now()
     });
     await fundRequest.save({ session });
 
+    // Validate assigned workflow
     const assignedWorkflow = await AssignedWorkflow.findById(workflowId);
     if (!assignedWorkflow) {
       throw new Error('Assigned workflow not found.');
