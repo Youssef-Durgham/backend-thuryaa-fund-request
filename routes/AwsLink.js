@@ -3,8 +3,8 @@ const AWS = require('aws-sdk');
 const router = express.Router();
 
 AWS.config.update({
-    accessKeyId: "AKIA2A7TW4X33V7ZXGPN",
-    secretAccessKey: "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",
+    accessKeyId: "AKIA3C5J5EFKLTFFSNTE",
+    secretAccessKey: "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",
     region: "me-south-1",
   });
   
@@ -13,7 +13,7 @@ AWS.config.update({
 router.get('/s3/signed-url', async (req, res) => {
   const { filename, filetype } = req.query;
   const s3Params = {
-    Bucket: 'taxi-app-najaf3',
+    Bucket: 's3-pr-po',
     Key: filename,
     Expires: 60, // Expires in 60 seconds
     ContentType: filetype,

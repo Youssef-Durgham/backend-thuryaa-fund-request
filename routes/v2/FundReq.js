@@ -134,6 +134,93 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
   }
 });
 
+// get history log of a fund request
+router.get(
+  "/workflows/user-approvals",
+  checkPermission("View_FundRequests"),
+  async (req, res) => {
+    try {
+      const userId = req.adminId; // from token middleware
+      if (!userId) {
+        return res.status(400).json({ message: "Invalid user ID." });
+      }
+
+      const { page = 1, limit = 10, search = "" } = req.query;
+      const pageNumber = parseInt(page, 10);
+      const limitNumber = parseInt(limit, 10);
+      const skip = (pageNumber - 1) * limitNumber;
+
+      // Base aggregation pipeline
+      let pipeline = [
+        {
+          $match: {
+            steps: {
+              $elemMatch: {
+                approvedBy: new mongoose.Types.ObjectId(userId),
+                status: { $in: ["Approved", "Rejected", "Canceled"] },
+              },
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "fundrequests", // Collection where Fund Requests are stored
+            localField: "transactionId",
+            foreignField: "_id",
+            as: "transactionDoc",
+          },
+        },
+        {
+          $unwind: {
+            path: "$transactionDoc",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+      ];
+
+      // Apply search filter if search term is provided
+      if (search) {
+        pipeline.push({
+          $match: {
+            $or: [
+              { "transactionDoc.description": { $regex: search, $options: "i" } }, // Case-insensitive description search
+              { "transactionDoc.amount": isNaN(search) ? -1 : parseFloat(search) }, // Search by amount
+            ],
+          },
+        });
+      }
+
+      // Sorting & Pagination
+      pipeline.push(
+        { $sort: { createdAt: -1 } },
+        {
+          $facet: {
+            paginatedResults: [{ $skip: skip }, { $limit: limitNumber }],
+            totalCount: [{ $count: "count" }],
+          },
+        }
+      );
+
+      // Execute aggregation query
+      const [result = {}] = await ApprovalWorkflow.aggregate(pipeline);
+      const { paginatedResults = [], totalCount = [] } = result;
+
+      const total = totalCount[0]?.count || 0;
+
+      return res.status(200).json({
+        message: "Workflows retrieved successfully.",
+        totalRequests: total,
+        currentPage: pageNumber,
+        totalPages: Math.ceil(total / limitNumber),
+        workflows: paginatedResults,
+      });
+    } catch (error) {
+      console.error("Error fetching user-approvals workflows:", error);
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+);
+
 // Approve Fund Request
 router.post('/fund-requests/:workflowId/approve', checkPermission('Approve_FundRequest'), async (req, res) => {
   const session = await mongoose.startSession();
@@ -771,6 +858,7 @@ router.post('/assigned-workflows', checkPermission('Manage_AssignedWorkflow'), a
 
     res.status(200).json({ message: 'Assigned workflow managed successfully.', assignedWorkflow });
   } catch (error) {
+    console.log(error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
