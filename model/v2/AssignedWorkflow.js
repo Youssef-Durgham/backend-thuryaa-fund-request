@@ -5,7 +5,7 @@ const Schema = mongoose.Schema;
 const assignedWorkflowSchema = new Schema({
   transactionType: { type: String, required: true, unique: true }, // e.g., 'FundRequest'
   steps: [{
-    level: { type: Number, required: true },
+    level: { type: Number },
     approvers: [{ type: Schema.Types.ObjectId, ref: 'Admin', required: true }]
   }],
   createdAt: { type: Date, default: Date.now },

@@ -831,37 +831,42 @@ router.get('/workflows', checkPermission('View_Workflows'), async (req, res) => 
     }
   });
 
-  // Create or Update Assigned Workflow
-router.post('/assigned-workflows', checkPermission('Manage_AssignedWorkflow'), async (req, res) => {
-  try {
-    const { transactionType, steps } = req.body;
-
-    let assignedWorkflow = await AssignedWorkflow.findOne({ transactionType });
-    if (!assignedWorkflow) {
-      // Create new assigned workflow if it doesn't exist
-      assignedWorkflow = new AssignedWorkflow({ transactionType, steps });
-    } else {
-      // Update existing assigned workflow
-      assignedWorkflow.steps = steps;
+  router.post('/assigned-workflows', checkPermission('Manage_AssignedWorkflow'), async (req, res) => {
+    try {
+      const { transactionType, steps } = req.body;
+  
+      let assignedWorkflow = await AssignedWorkflow.findOne({ transactionType });
+      if (!assignedWorkflow) {
+        // Create new assigned workflow if it doesn't exist
+        assignedWorkflow = new AssignedWorkflow({ transactionType, steps });
+      } else {
+        // Ensure levels are properly assigned
+        const existingLevels = assignedWorkflow.steps.map(step => step.level);
+        let newSteps = steps.map((step, index) => ({
+          level: step.level || (existingLevels.length ? Math.max(...existingLevels) + 1 : 1),
+          approvers: step.approvers
+        }));
+  
+        assignedWorkflow.steps = newSteps;
+      }
+  
+      await assignedWorkflow.save();
+  
+      await logActivity({
+        action: 'Manage_AssignedWorkflow',
+        performedBy: req.adminId,
+        targetItem: assignedWorkflow._id,
+        itemType: 'AssignedWorkflow',
+        userType: 'Admin',
+        description: `Created or updated assigned workflow for transaction type ${transactionType}`
+      });
+  
+      res.status(200).json({ message: 'Assigned workflow managed successfully.', assignedWorkflow });
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ message: 'Server error', error: error.message });
     }
-
-    await assignedWorkflow.save();
-
-    await logActivity({
-      action: 'Manage_AssignedWorkflow',
-      performedBy: req.adminId,
-      targetItem: assignedWorkflow._id,
-      itemType: 'AssignedWorkflow',
-      userType: 'Admin',
-      description: `Created or updated assigned workflow for transaction type ${transactionType}`
-    });
-
-    res.status(200).json({ message: 'Assigned workflow managed successfully.', assignedWorkflow });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
+  });  
 
 // Add User to Assigned Workflow
 router.post('/assigned-workflows/:workflowId/add-user', checkPermission('Manage_AssignedWorkflowUsers'), async (req, res) => {

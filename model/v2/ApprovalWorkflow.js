@@ -6,7 +6,7 @@ const approvalWorkflowSchema = new mongoose.Schema({
   transactionType: { type: String, required: true },
   transactionId: { type: mongoose.Schema.Types.ObjectId, ref: 'FundRequest', required: true },
   steps: [{
-    level: { type: Number, required: true },
+    level: { type: Number },
     approvers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Admin' }],
     status: { type: String, enum: ['Pending', 'Approved', 'Rejected', 'Canceled'], default: 'Pending' },
     approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },

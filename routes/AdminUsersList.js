@@ -40,6 +40,7 @@ const checkPermission = (permission) => {
       console.log(permission, token, decoded, admin, hasPermission);
 
       if (!hasPermission) {
+        console.log("not have per",hasPermission)
         return res.status(403).json({ message: 'Forbidden: Insufficient permissions' });
       }
 
@@ -87,6 +88,7 @@ router.get('/admin-users-list', checkPermission('List_Admin_Users'), async (req,
       totalAdmins,
     });
   } catch (error) {
+    console.log(error)
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
