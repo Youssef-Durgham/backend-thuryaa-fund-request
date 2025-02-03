@@ -1,608 +1,7 @@
 {
-  "/Volumes/programming_folders/redia_projects/wf po/backend": {
-    "versionSfCore": null,
-    "versionFramework": "4.4.19",
-    "isWithinCompose": false,
-    "isCompose": false,
-    "composeOrgName": null,
-    "composeResolverProviders": {
-      "default-aws-credential-resolver": "<REDACTED>",
-      "sls": {
-        "instance": {
-          "credentials": "<REDACTED>",
-          "serviceConfigFile": {
-            "service": "po",
-            "provider": {
-              "name": "aws",
-              "versionFunctions": false,
-              "runtime": "nodejs18.x",
-              "region": "me-south-1",
-              "profile": "alrida-company",
-              "memorySize": 3008,
-              "timeout": 300,
-              "apiGateway": {
-                "binaryMediaTypes": [
-                  "*/*"
-                ]
-              },
-              "httpApi": {
-                "cors": true
-              },
-              "stage": "dev",
-              "compiledCloudFormationTemplate": {
-                "AWSTemplateFormatVersion": "2010-09-09",
-                "Description": "The AWS CloudFormation template for this Serverless application",
-                "Resources": {
-                  "MainLogGroup": {
-                    "Type": "AWS::Logs::LogGroup",
-                    "Properties": {
-                      "LogGroupName": "/aws/lambda/po-dev-main"
-                    }
-                  },
-                  "IamRoleLambdaExecution": {
-                    "Type": "AWS::IAM::Role",
-                    "Properties": {
-                      "AssumeRolePolicyDocument": {
-                        "Version": "2012-10-17",
-                        "Statement": [
-                          {
-                            "Effect": "Allow",
-                            "Principal": {
-                              "Service": [
-                                "lambda.amazonaws.com"
-                              ]
-                            },
-                            "Action": [
-                              "sts:AssumeRole"
-                            ]
-                          }
-                        ]
-                      },
-                      "Policies": [
-                        {
-                          "PolicyName": {
-                            "Fn::Join": [
-                              "-",
-                              [
-                                "po",
-                                "dev",
-                                "lambda"
-                              ]
-                            ]
-                          },
-                          "PolicyDocument": {
-                            "Version": "2012-10-17",
-                            "Statement": [
-                              {
-                                "Effect": "Allow",
-                                "Action": [
-                                  "logs:CreateLogStream",
-                                  "logs:CreateLogGroup",
-                                  "logs:TagResource"
-                                ],
-                                "Resource": [
-                                  {
-                                    "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/po-dev*:*"
-                                  }
-                                ]
-                              },
-                              {
-                                "Effect": "Allow",
-                                "Action": [
-                                  "logs:PutLogEvents"
-                                ],
-                                "Resource": [
-                                  {
-                                    "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/po-dev*:*:*"
-                                  }
-                                ]
-                              },
-                              {
-                                "Effect": "Allow",
-                                "Action": [
-                                  "execute-api:ManageConnections"
-                                ],
-                                "Resource": [
-                                  {
-                                    "Fn::Sub": "arn:${AWS::Partition}:execute-api:*:*:*/@connections/*"
-                                  }
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                      ],
-                      "Path": "/",
-                      "RoleName": {
-                        "Fn::Join": [
-                          "-",
-                          [
-                            "po",
-                            "dev",
-                            {
-                              "Ref": "AWS::Region"
-                            },
-                            "lambdaRole"
-                          ]
-                        ]
-                      }
-                    }
-                  },
-                  "MainLambdaFunction": {
-                    "Type": "AWS::Lambda::Function",
-                    "Properties": {
-                      "Code": {
-                        "S3Bucket": "serverless-framework-deployments-me-south-1-8a13aeac-3aab",
-                        "S3Key": "serverless/po/dev/1737983865037-2025-01-27T13:17:45.037Z/po.zip"
-                      },
-                      "Handler": "index.handler",
-                      "Runtime": "nodejs18.x",
-                      "FunctionName": "po-dev-main",
-                      "MemorySize": 3008,
-                      "Timeout": 300,
-                      "Environment": {
-                        "Variables": {
-                          "MONGO_URL": "mongodb+srv://yusif:yusif123@cluster0.y4yjo.mongodb.net/?retryWrites=true&w=majority",
-                          "TOKEN_SECRET": "<REDACTED>",
-                          "ADMIN_SECRET_KEY": "<REDACTED>",
-                          "JWT_SECRET": "<REDACTED>",
-                          "TWILIO_ACCOUNT_SID": "AC910896cde4bfb662ca9fe076b02536e7",
-                          "TWILIO_AUTH_TOKEN": "<REDACTED>",
-                          "TWILIO_PHONE_NUMBER": "+13466666692",
-                          "TWILIO_WHATSAPP_PHONE": "+14155238886",
-                          "EMAIL_USERNAME": "yusifdhrgamtrt@gmail.com",
-                          "EMAIL_PASSWORD": "<REDACTED>",
-                          "ACCESS_KEY": "<REDACTED>",
-                          "SECRET_ACCESS_KEY": "<REDACTED>",
-                          "AWS_NAME": "codellab",
-                          "FB_GRAPH_API_TOKEN": "<REDACTED>",
-                          "VIBER_AUTH_TOKEN": "<REDACTED>",
-                          "TELEGRAM_BOT_TOKEN": "<REDACTED>",
-                          "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
-                          "ULTRAMSG_TOKEN": "<REDACTED>",
-                          "EMAIL_USER": "info@spc-it.com.iq",
-                          "EMAIL_PASS": "AltShiftDel123",
-                          "PM2_HOME": "~/.pm2"
-                        }
-                      },
-                      "Role": {
-                        "Fn::GetAtt": [
-                          "IamRoleLambdaExecution",
-                          "Arn"
-                        ]
-                      }
-                    },
-                    "DependsOn": [
-                      "MainLogGroup"
-                    ]
-                  },
-                  "ApiGatewayRestApi": {
-                    "Type": "AWS::ApiGateway::RestApi",
-                    "Properties": {
-                      "Name": "dev-po",
-                      "BinaryMediaTypes": [
-                        "*/*"
-                      ],
-                      "EndpointConfiguration": {
-                        "Types": [
-                          "EDGE"
-                        ]
-                      },
-                      "Policy": ""
-                    }
-                  },
-                  "ApiGatewayResourceProxyVar": {
-                    "Type": "AWS::ApiGateway::Resource",
-                    "Properties": {
-                      "ParentId": {
-                        "Fn::GetAtt": [
-                          "ApiGatewayRestApi",
-                          "RootResourceId"
-                        ]
-                      },
-                      "PathPart": "{proxy+}",
-                      "RestApiId": {
-                        "Ref": "ApiGatewayRestApi"
-                      }
-                    }
-                  },
-                  "ApiGatewayMethodProxyVarAny": {
-                    "Type": "AWS::ApiGateway::Method",
-                    "Properties": {
-                      "HttpMethod": "ANY",
-                      "RequestParameters": {},
-                      "ResourceId": {
-                        "Ref": "ApiGatewayResourceProxyVar"
-                      },
-                      "RestApiId": {
-                        "Ref": "ApiGatewayRestApi"
-                      },
-                      "ApiKeyRequired": "<REDACTED>",
-                      "AuthorizationType": "NONE",
-                      "Integration": {
-                        "IntegrationHttpMethod": "POST",
-                        "Type": "AWS_PROXY",
-                        "Uri": {
-                          "Fn::Join": [
-                            "",
-                            [
-                              "arn:",
-                              {
-                                "Ref": "AWS::Partition"
-                              },
-                              ":apigateway:",
-                              {
-                                "Ref": "AWS::Region"
-                              },
-                              ":lambda:path/2015-03-31/functions/",
-                              {
-                                "Fn::GetAtt": [
-                                  "MainLambdaFunction",
-                                  "Arn"
-                                ]
-                              },
-                              "/invocations"
-                            ]
-                          ]
-                        }
-                      },
-                      "MethodResponses": []
-                    },
-                    "DependsOn": [
-                      "MainLambdaPermissionApiGateway"
-                    ]
-                  },
-                  "ApiGatewayDeployment1737983849295": {
-                    "Type": "AWS::ApiGateway::Deployment",
-                    "Properties": {
-                      "RestApiId": {
-                        "Ref": "ApiGatewayRestApi"
-                      },
-                      "StageName": "dev"
-                    },
-                    "DependsOn": [
-                      "ApiGatewayMethodProxyVarAny"
-                    ]
-                  },
-                  "MainLambdaPermissionApiGateway": {
-                    "Type": "AWS::Lambda::Permission",
-                    "Properties": {
-                      "FunctionName": {
-                        "Fn::GetAtt": [
-                          "MainLambdaFunction",
-                          "Arn"
-                        ]
-                      },
-                      "Action": "lambda:InvokeFunction",
-                      "Principal": "apigateway.amazonaws.com",
-                      "SourceArn": {
-                        "Fn::Join": [
-                          "",
-                          [
-                            "arn:",
-                            {
-                              "Ref": "AWS::Partition"
-                            },
-                            ":execute-api:",
-                            {
-                              "Ref": "AWS::Region"
-                            },
-                            ":",
-                            {
-                              "Ref": "AWS::AccountId"
-                            },
-                            ":",
-                            {
-                              "Ref": "ApiGatewayRestApi"
-                            },
-                            "/*/*"
-                          ]
-                        ]
-                      }
-                    }
-                  },
-                  "WebsocketsApi": {
-                    "Type": "AWS::ApiGatewayV2::Api",
-                    "Properties": {
-                      "Name": "dev-po-websockets",
-                      "RouteSelectionExpression": "$request.body.action",
-                      "Description": "Serverless Websockets",
-                      "ProtocolType": "WEBSOCKET"
-                    }
-                  },
-                  "MainWebsocketsIntegration": {
-                    "Type": "AWS::ApiGatewayV2::Integration",
-                    "Properties": {
-                      "ApiId": {
-                        "Ref": "WebsocketsApi"
-                      },
-                      "IntegrationType": "AWS_PROXY",
-                      "IntegrationUri": {
-                        "Fn::Join": [
-                          "",
-                          [
-                            "arn:",
-                            {
-                              "Ref": "AWS::Partition"
-                            },
-                            ":apigateway:",
-                            {
-                              "Ref": "AWS::Region"
-                            },
-                            ":lambda:path/2015-03-31/functions/",
-                            {
-                              "Fn::GetAtt": [
-                                "MainLambdaFunction",
-                                "Arn"
-                              ]
-                            },
-                            "/invocations"
-                          ]
-                        ]
-                      }
-                    }
-                  },
-                  "MainLambdaPermissionWebsockets": {
-                    "Type": "AWS::Lambda::Permission",
-                    "DependsOn": [
-                      "WebsocketsApi",
-                      "MainLambdaFunction"
-                    ],
-                    "Properties": {
-                      "FunctionName": {
-                        "Fn::GetAtt": [
-                          "MainLambdaFunction",
-                          "Arn"
-                        ]
-                      },
-                      "Action": "lambda:InvokeFunction",
-                      "Principal": "apigateway.amazonaws.com"
-                    }
-                  },
-                  "SdefaultWebsocketsRoute": {
-                    "Type": "AWS::ApiGatewayV2::Route",
-                    "Properties": {
-                      "ApiId": {
-                        "Ref": "WebsocketsApi"
-                      },
-                      "RouteKey": "$default",
-                      "AuthorizationType": "NONE",
-                      "Target": {
-                        "Fn::Join": [
-                          "/",
-                          [
-                            "integrations",
-                            {
-                              "Ref": "MainWebsocketsIntegration"
-                            }
-                          ]
-                        ]
-                      }
-                    }
-                  },
-                  "SconnectWebsocketsRoute": {
-                    "Type": "AWS::ApiGatewayV2::Route",
-                    "Properties": {
-                      "ApiId": {
-                        "Ref": "WebsocketsApi"
-                      },
-                      "RouteKey": "$connect",
-                      "AuthorizationType": "NONE",
-                      "Target": {
-                        "Fn::Join": [
-                          "/",
-                          [
-                            "integrations",
-                            {
-                              "Ref": "MainWebsocketsIntegration"
-                            }
-                          ]
-                        ]
-                      }
-                    }
-                  },
-                  "SdisconnectWebsocketsRoute": {
-                    "Type": "AWS::ApiGatewayV2::Route",
-                    "Properties": {
-                      "ApiId": {
-                        "Ref": "WebsocketsApi"
-                      },
-                      "RouteKey": "$disconnect",
-                      "AuthorizationType": "NONE",
-                      "Target": {
-                        "Fn::Join": [
-                          "/",
-                          [
-                            "integrations",
-                            {
-                              "Ref": "MainWebsocketsIntegration"
-                            }
-                          ]
-                        ]
-                      }
-                    }
-                  },
-                  "WebsocketsDeploymentStage": {
-                    "Type": "AWS::ApiGatewayV2::Stage",
-                    "Properties": {
-                      "ApiId": {
-                        "Ref": "WebsocketsApi"
-                      },
-                      "StageName": "dev",
-                      "Description": "Serverless Websockets",
-                      "DeploymentId": {
-                        "Ref": "WebsocketsDeploymentKINrhckIiakS8Io73076QfdCEfYBAlVHMiv5qCS6l78"
-                      }
-                    }
-                  },
-                  "WebsocketsDeploymentKINrhckIiakS8Io73076QfdCEfYBAlVHMiv5qCS6l78": {
-                    "Type": "AWS::ApiGatewayV2::Deployment",
-                    "DependsOn": [
-                      "SdefaultWebsocketsRoute",
-                      "SconnectWebsocketsRoute",
-                      "SdisconnectWebsocketsRoute"
-                    ],
-                    "Properties": {
-                      "ApiId": {
-                        "Ref": "WebsocketsApi"
-                      },
-                      "Description": "Serverless Websockets"
-                    }
-                  }
-                },
-                "Outputs": {
-                  "ServerlessDeploymentBucketName": {
-                    "Value": "serverless-framework-deployments-me-south-1-8a13aeac-3aab",
-                    "Export": {
-                      "Name": "sls-po-dev-ServerlessDeploymentBucketName"
-                    }
-                  },
-                  "ServiceEndpoint": {
-                    "Description": "URL of the service endpoint",
-                    "Value": {
-                      "Fn::Join": [
-                        "",
-                        [
-                          "https://",
-                          {
-                            "Ref": "ApiGatewayRestApi"
-                          },
-                          ".execute-api.",
-                          {
-                            "Ref": "AWS::Region"
-                          },
-                          ".",
-                          {
-                            "Ref": "AWS::URLSuffix"
-                          },
-                          "/dev"
-                        ]
-                      ]
-                    },
-                    "Export": {
-                      "Name": "sls-po-dev-ServiceEndpoint"
-                    }
-                  },
-                  "ServiceEndpointWebsocket": {
-                    "Description": "URL of the service endpoint",
-                    "Value": {
-                      "Fn::Join": [
-                        "",
-                        [
-                          "wss://",
-                          {
-                            "Ref": "WebsocketsApi"
-                          },
-                          ".execute-api.",
-                          {
-                            "Ref": "AWS::Region"
-                          },
-                          ".",
-                          {
-                            "Ref": "AWS::URLSuffix"
-                          },
-                          "/dev"
-                        ]
-                      ]
-                    },
-                    "Export": {
-                      "Name": "sls-po-dev-ServiceEndpointWebsocket"
-                    }
-                  }
-                }
-              },
-              "vpc": {}
-            },
-            "custom": {
-              "esbuild": {
-                "external": [
-                  "sharp"
-                ]
-              },
-              "packagerOptions": {
-                "scripts": [
-                  "npm install --arch=x64 --platform=linux sharp"
-                ]
-              }
-            },
-            "functions": {
-              "main": {
-                "handler": "index.handler",
-                "environment": {
-                  "MONGO_URL": "mongodb+srv://yusif:yusif123@cluster0.y4yjo.mongodb.net/?retryWrites=true&w=majority",
-                  "TOKEN_SECRET": "<REDACTED>",
-                  "ADMIN_SECRET_KEY": "<REDACTED>",
-                  "JWT_SECRET": "<REDACTED>",
-                  "TWILIO_ACCOUNT_SID": "AC910896cde4bfb662ca9fe076b02536e7",
-                  "TWILIO_AUTH_TOKEN": "<REDACTED>",
-                  "TWILIO_PHONE_NUMBER": "+13466666692",
-                  "TWILIO_WHATSAPP_PHONE": "+14155238886",
-                  "EMAIL_USERNAME": "yusifdhrgamtrt@gmail.com",
-                  "EMAIL_PASSWORD": "<REDACTED>",
-                  "ACCESS_KEY": "<REDACTED>",
-                  "SECRET_ACCESS_KEY": "<REDACTED>",
-                  "AWS_NAME": "codellab",
-                  "FB_GRAPH_API_TOKEN": "<REDACTED>",
-                  "VIBER_AUTH_TOKEN": "<REDACTED>",
-                  "TELEGRAM_BOT_TOKEN": "<REDACTED>",
-                  "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
-                  "ULTRAMSG_TOKEN": "<REDACTED>",
-                  "EMAIL_USER": "info@spc-it.com.iq",
-                  "EMAIL_PASS": "AltShiftDel123",
-                  "PM2_HOME": "~/.pm2"
-                },
-                "events": [
-                  {
-                    "websocket": {
-                      "route": "$default"
-                    }
-                  },
-                  {
-                    "websocket": {
-                      "route": "$connect"
-                    }
-                  },
-                  {
-                    "websocket": {
-                      "route": "$disconnect"
-                    }
-                  },
-                  {
-                    "http": {
-                      "path": "{proxy+}",
-                      "method": "any",
-                      "integration": "AWS_PROXY"
-                    }
-                  }
-                ],
-                "name": "po-dev-main",
-                "package": {},
-                "memory": 3008,
-                "timeout": 300,
-                "runtime": "nodejs18.x",
-                "vpc": {}
-              }
-            }
-          },
-          "configFileDirPath": "/Volumes/programming_folders/redia_projects/wf po/backend",
-          "config": {
-            "type": "sls"
-          },
-          "options": {},
-          "stage": "dev",
-          "dashboard": null,
-          "logger": {
-            "namespace": "s:core:resolver:sls",
-            "prefix": null,
-            "prefixColor": null
-          },
-          "_credentialsPromise": "<REDACTED>"
-        },
-        "resolvers": {}
-      }
-    },
-    "composeServiceName": null,
-    "servicePath": "/Volumes/programming_folders/redia_projects/wf po/backend",
+  "/Volumes/programming_folders/redia_projects/wf po/backend/serverless.yml": {
+    "versionFramework": "4.5.3",
+    "servicePath": "/Volumes/programming_folders/redia_projects/wf po/backend/serverless.yml",
     "serviceConfigFileName": "serverless.yml",
     "service": {
       "service": "po",
@@ -727,7 +126,7 @@
               "Properties": {
                 "Code": {
                   "S3Bucket": "serverless-framework-deployments-me-south-1-8a13aeac-3aab",
-                  "S3Key": "serverless/po/dev/1737983865037-2025-01-27T13:17:45.037Z/po.zip"
+                  "S3Key": "serverless/po/dev/1738578460290-2025-02-03T10:27:40.290Z/po.zip"
                 },
                 "Handler": "index.handler",
                 "Runtime": "nodejs18.x",
@@ -846,7 +245,7 @@
                 "MainLambdaPermissionApiGateway"
               ]
             },
-            "ApiGatewayDeployment1737983849295": {
+            "ApiGatewayDeployment1738578391584": {
               "Type": "AWS::ApiGateway::Deployment",
               "Properties": {
                 "RestApiId": {
@@ -1178,20 +577,507 @@
         }
       }
     },
-    "serviceRawFile": "service: po\n\nprovider:\n  name: aws\n  versionFunctions: false\n  runtime: nodejs18.x\n  region: me-south-1\n  profile: alrida-company\n  memorySize: 3008\n  timeout: 300  # Adjusted to 29 seconds to comply with API Gateway limits\n  apiGateway:\n    binaryMediaTypes:\n      - '*/*'\n  httpApi:\n    cors: true\n\ncustom:\n  esbuild:\n    external:\n      - sharp\n  packagerOptions:\n    scripts:\n      - npm install --arch=x64 --platform=linux sharp\n\nfunctions:\n  main:\n    handler: index.handler\n    environment:\n      MONGO_URL: \"mongodb+srv://yusif:yusif123@cluster0.y4yjo.mongodb.net/?retryWrites=true&w=majority\"\n      TOKEN_SECRET: \"laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs\"\n      ADMIN_SECRET_KEY: \"FoodoYusif123@\"\n      JWT_SECRET: \"1234567890\"\n      TWILIO_ACCOUNT_SID: \"AC910896cde4bfb662ca9fe076b02536e7\"\n      TWILIO_AUTH_TOKEN: \"5ce307ff197422b1b5f97849f4e5db2c\"\n      TWILIO_PHONE_NUMBER: \"+13466666692\"\n      TWILIO_WHATSAPP_PHONE: \"+14155238886\"\n      EMAIL_USERNAME: \"yusifdhrgamtrt@gmail.com\"\n      EMAIL_PASSWORD: \"lzjnrolzwuspywug\"\n      ACCESS_KEY: \"AKIAVCZ3WWWGPXVCKJBA\"\n      SECRET_ACCESS_KEY: \"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\"\n      AWS_NAME: \"codellab\"\n      FB_GRAPH_API_TOKEN: \"EAAIE6J8ewBUBANQt5nEBIURGdgjURdMs3e9A78qWt1uOMOyfThvjSdgoz0q6ZC2ZBNuZCmba7SNRlpWFdeLuLylMEIrLlkxZAmSjKiZAQyr2uVwvJjytGFZBRnywQUbudJBfxQXWx3rCyOZBscmiWlnrbTswIZAWZAZAsDDbsR8lwqNar58Q9swAfNnZB4xUOvQ8BwURyJUAy0wFgZDZD\"\n      VIBER_AUTH_TOKEN: \"50ae4cd97ca7e5c1-27076050a42dc54c-de9a63fa03059af1\"\n      TELEGRAM_BOT_TOKEN: \"5612346036:AAGb0txW0SPrQSToEIQODxI_gMEdVCMJKWs\"\n      ULTRAMSG_API_URL: \"https://api.ultramsg.com/instance87136/messages/chat\"\n      ULTRAMSG_TOKEN: \"2i9r14uumbiddwpb\"\n      EMAIL_USER: \"info@spc-it.com.iq\"\n      EMAIL_PASS: \"AltShiftDel123\"\n      PM2_HOME: ~/.pm2\n    events:\n      - websocket:\n          route: $default\n      - websocket:\n          route: $connect\n      - websocket:\n          route: $disconnect\n      - http:\n          path: /{proxy+}\n          method: ANY\n\n  \n",
-    "command": [
-      "deploy"
-    ],
-    "options": {},
-    "error": null,
-    "params": {},
-    "machineId": "a15b59c7ddb9306106351ffa3fa29e6d",
-    "stage": "dev",
-    "accessKeyV2": "<REDACTED>",
-    "accessKeyV1": "<REDACTED>",
-    "orgId": "183ac4f4-dcac-47e8-9362-a49e26e929ce",
-    "orgName": "yusifdhrgam",
-    "userId": "gkGyS7Ds4jG5JC3YBD",
+    "provider": {
+      "name": "aws",
+      "versionFunctions": false,
+      "runtime": "nodejs18.x",
+      "region": "me-south-1",
+      "profile": "alrida-company",
+      "memorySize": 3008,
+      "timeout": 300,
+      "apiGateway": {
+        "binaryMediaTypes": [
+          "*/*"
+        ]
+      },
+      "httpApi": {
+        "cors": true
+      },
+      "stage": "dev",
+      "compiledCloudFormationTemplate": {
+        "AWSTemplateFormatVersion": "2010-09-09",
+        "Description": "The AWS CloudFormation template for this Serverless application",
+        "Resources": {
+          "MainLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+              "LogGroupName": "/aws/lambda/po-dev-main"
+            }
+          },
+          "IamRoleLambdaExecution": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+              "AssumeRolePolicyDocument": {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": {
+                      "Service": [
+                        "lambda.amazonaws.com"
+                      ]
+                    },
+                    "Action": [
+                      "sts:AssumeRole"
+                    ]
+                  }
+                ]
+              },
+              "Policies": [
+                {
+                  "PolicyName": {
+                    "Fn::Join": [
+                      "-",
+                      [
+                        "po",
+                        "dev",
+                        "lambda"
+                      ]
+                    ]
+                  },
+                  "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "logs:CreateLogStream",
+                          "logs:CreateLogGroup",
+                          "logs:TagResource"
+                        ],
+                        "Resource": [
+                          {
+                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/po-dev*:*"
+                          }
+                        ]
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "logs:PutLogEvents"
+                        ],
+                        "Resource": [
+                          {
+                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/po-dev*:*:*"
+                          }
+                        ]
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "execute-api:ManageConnections"
+                        ],
+                        "Resource": [
+                          {
+                            "Fn::Sub": "arn:${AWS::Partition}:execute-api:*:*:*/@connections/*"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ],
+              "Path": "/",
+              "RoleName": {
+                "Fn::Join": [
+                  "-",
+                  [
+                    "po",
+                    "dev",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    "lambdaRole"
+                  ]
+                ]
+              }
+            }
+          },
+          "MainLambdaFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "Code": {
+                "S3Bucket": "serverless-framework-deployments-me-south-1-8a13aeac-3aab",
+                "S3Key": "serverless/po/dev/1738578460290-2025-02-03T10:27:40.290Z/po.zip"
+              },
+              "Handler": "index.handler",
+              "Runtime": "nodejs18.x",
+              "FunctionName": "po-dev-main",
+              "MemorySize": 3008,
+              "Timeout": 300,
+              "Environment": {
+                "Variables": {
+                  "MONGO_URL": "mongodb+srv://yusif:yusif123@cluster0.y4yjo.mongodb.net/?retryWrites=true&w=majority",
+                  "TOKEN_SECRET": "<REDACTED>",
+                  "ADMIN_SECRET_KEY": "<REDACTED>",
+                  "JWT_SECRET": "<REDACTED>",
+                  "TWILIO_ACCOUNT_SID": "AC910896cde4bfb662ca9fe076b02536e7",
+                  "TWILIO_AUTH_TOKEN": "<REDACTED>",
+                  "TWILIO_PHONE_NUMBER": "+13466666692",
+                  "TWILIO_WHATSAPP_PHONE": "+14155238886",
+                  "EMAIL_USERNAME": "yusifdhrgamtrt@gmail.com",
+                  "EMAIL_PASSWORD": "<REDACTED>",
+                  "ACCESS_KEY": "<REDACTED>",
+                  "SECRET_ACCESS_KEY": "<REDACTED>",
+                  "AWS_NAME": "codellab",
+                  "FB_GRAPH_API_TOKEN": "<REDACTED>",
+                  "VIBER_AUTH_TOKEN": "<REDACTED>",
+                  "TELEGRAM_BOT_TOKEN": "<REDACTED>",
+                  "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
+                  "ULTRAMSG_TOKEN": "<REDACTED>",
+                  "EMAIL_USER": "info@spc-it.com.iq",
+                  "EMAIL_PASS": "AltShiftDel123",
+                  "PM2_HOME": "~/.pm2"
+                }
+              },
+              "Role": {
+                "Fn::GetAtt": [
+                  "IamRoleLambdaExecution",
+                  "Arn"
+                ]
+              }
+            },
+            "DependsOn": [
+              "MainLogGroup"
+            ]
+          },
+          "ApiGatewayRestApi": {
+            "Type": "AWS::ApiGateway::RestApi",
+            "Properties": {
+              "Name": "dev-po",
+              "BinaryMediaTypes": [
+                "*/*"
+              ],
+              "EndpointConfiguration": {
+                "Types": [
+                  "EDGE"
+                ]
+              },
+              "Policy": ""
+            }
+          },
+          "ApiGatewayResourceProxyVar": {
+            "Type": "AWS::ApiGateway::Resource",
+            "Properties": {
+              "ParentId": {
+                "Fn::GetAtt": [
+                  "ApiGatewayRestApi",
+                  "RootResourceId"
+                ]
+              },
+              "PathPart": "{proxy+}",
+              "RestApiId": {
+                "Ref": "ApiGatewayRestApi"
+              }
+            }
+          },
+          "ApiGatewayMethodProxyVarAny": {
+            "Type": "AWS::ApiGateway::Method",
+            "Properties": {
+              "HttpMethod": "ANY",
+              "RequestParameters": {},
+              "ResourceId": {
+                "Ref": "ApiGatewayResourceProxyVar"
+              },
+              "RestApiId": {
+                "Ref": "ApiGatewayRestApi"
+              },
+              "ApiKeyRequired": "<REDACTED>",
+              "AuthorizationType": "NONE",
+              "Integration": {
+                "IntegrationHttpMethod": "POST",
+                "Type": "AWS_PROXY",
+                "Uri": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":apigateway:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":lambda:path/2015-03-31/functions/",
+                      {
+                        "Fn::GetAtt": [
+                          "MainLambdaFunction",
+                          "Arn"
+                        ]
+                      },
+                      "/invocations"
+                    ]
+                  ]
+                }
+              },
+              "MethodResponses": []
+            },
+            "DependsOn": [
+              "MainLambdaPermissionApiGateway"
+            ]
+          },
+          "ApiGatewayDeployment1738578391584": {
+            "Type": "AWS::ApiGateway::Deployment",
+            "Properties": {
+              "RestApiId": {
+                "Ref": "ApiGatewayRestApi"
+              },
+              "StageName": "dev"
+            },
+            "DependsOn": [
+              "ApiGatewayMethodProxyVarAny"
+            ]
+          },
+          "MainLambdaPermissionApiGateway": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+              "FunctionName": {
+                "Fn::GetAtt": [
+                  "MainLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "Action": "lambda:InvokeFunction",
+              "Principal": "apigateway.amazonaws.com",
+              "SourceArn": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":execute-api:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":",
+                    {
+                      "Ref": "ApiGatewayRestApi"
+                    },
+                    "/*/*"
+                  ]
+                ]
+              }
+            }
+          },
+          "WebsocketsApi": {
+            "Type": "AWS::ApiGatewayV2::Api",
+            "Properties": {
+              "Name": "dev-po-websockets",
+              "RouteSelectionExpression": "$request.body.action",
+              "Description": "Serverless Websockets",
+              "ProtocolType": "WEBSOCKET"
+            }
+          },
+          "MainWebsocketsIntegration": {
+            "Type": "AWS::ApiGatewayV2::Integration",
+            "Properties": {
+              "ApiId": {
+                "Ref": "WebsocketsApi"
+              },
+              "IntegrationType": "AWS_PROXY",
+              "IntegrationUri": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":apigateway:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":lambda:path/2015-03-31/functions/",
+                    {
+                      "Fn::GetAtt": [
+                        "MainLambdaFunction",
+                        "Arn"
+                      ]
+                    },
+                    "/invocations"
+                  ]
+                ]
+              }
+            }
+          },
+          "MainLambdaPermissionWebsockets": {
+            "Type": "AWS::Lambda::Permission",
+            "DependsOn": [
+              "WebsocketsApi",
+              "MainLambdaFunction"
+            ],
+            "Properties": {
+              "FunctionName": {
+                "Fn::GetAtt": [
+                  "MainLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "Action": "lambda:InvokeFunction",
+              "Principal": "apigateway.amazonaws.com"
+            }
+          },
+          "SdefaultWebsocketsRoute": {
+            "Type": "AWS::ApiGatewayV2::Route",
+            "Properties": {
+              "ApiId": {
+                "Ref": "WebsocketsApi"
+              },
+              "RouteKey": "$default",
+              "AuthorizationType": "NONE",
+              "Target": {
+                "Fn::Join": [
+                  "/",
+                  [
+                    "integrations",
+                    {
+                      "Ref": "MainWebsocketsIntegration"
+                    }
+                  ]
+                ]
+              }
+            }
+          },
+          "SconnectWebsocketsRoute": {
+            "Type": "AWS::ApiGatewayV2::Route",
+            "Properties": {
+              "ApiId": {
+                "Ref": "WebsocketsApi"
+              },
+              "RouteKey": "$connect",
+              "AuthorizationType": "NONE",
+              "Target": {
+                "Fn::Join": [
+                  "/",
+                  [
+                    "integrations",
+                    {
+                      "Ref": "MainWebsocketsIntegration"
+                    }
+                  ]
+                ]
+              }
+            }
+          },
+          "SdisconnectWebsocketsRoute": {
+            "Type": "AWS::ApiGatewayV2::Route",
+            "Properties": {
+              "ApiId": {
+                "Ref": "WebsocketsApi"
+              },
+              "RouteKey": "$disconnect",
+              "AuthorizationType": "NONE",
+              "Target": {
+                "Fn::Join": [
+                  "/",
+                  [
+                    "integrations",
+                    {
+                      "Ref": "MainWebsocketsIntegration"
+                    }
+                  ]
+                ]
+              }
+            }
+          },
+          "WebsocketsDeploymentStage": {
+            "Type": "AWS::ApiGatewayV2::Stage",
+            "Properties": {
+              "ApiId": {
+                "Ref": "WebsocketsApi"
+              },
+              "StageName": "dev",
+              "Description": "Serverless Websockets",
+              "DeploymentId": {
+                "Ref": "WebsocketsDeploymentKINrhckIiakS8Io73076QfdCEfYBAlVHMiv5qCS6l78"
+              }
+            }
+          },
+          "WebsocketsDeploymentKINrhckIiakS8Io73076QfdCEfYBAlVHMiv5qCS6l78": {
+            "Type": "AWS::ApiGatewayV2::Deployment",
+            "DependsOn": [
+              "SdefaultWebsocketsRoute",
+              "SconnectWebsocketsRoute",
+              "SdisconnectWebsocketsRoute"
+            ],
+            "Properties": {
+              "ApiId": {
+                "Ref": "WebsocketsApi"
+              },
+              "Description": "Serverless Websockets"
+            }
+          }
+        },
+        "Outputs": {
+          "ServerlessDeploymentBucketName": {
+            "Value": "serverless-framework-deployments-me-south-1-8a13aeac-3aab",
+            "Export": {
+              "Name": "sls-po-dev-ServerlessDeploymentBucketName"
+            }
+          },
+          "ServiceEndpoint": {
+            "Description": "URL of the service endpoint",
+            "Value": {
+              "Fn::Join": [
+                "",
+                [
+                  "https://",
+                  {
+                    "Ref": "ApiGatewayRestApi"
+                  },
+                  ".execute-api.",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  ".",
+                  {
+                    "Ref": "AWS::URLSuffix"
+                  },
+                  "/dev"
+                ]
+              ]
+            },
+            "Export": {
+              "Name": "sls-po-dev-ServiceEndpoint"
+            }
+          },
+          "ServiceEndpointWebsocket": {
+            "Description": "URL of the service endpoint",
+            "Value": {
+              "Fn::Join": [
+                "",
+                [
+                  "wss://",
+                  {
+                    "Ref": "WebsocketsApi"
+                  },
+                  ".execute-api.",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  ".",
+                  {
+                    "Ref": "AWS::URLSuffix"
+                  },
+                  "/dev"
+                ]
+              ]
+            },
+            "Export": {
+              "Name": "sls-po-dev-ServiceEndpointWebsocket"
+            }
+          }
+        }
+      },
+      "vpc": {}
+    },
     "dashboard": {
       "isEnabledForService": false,
       "requiredAuthentication": false,
@@ -1201,20 +1087,20 @@
       "serviceProvider": null,
       "instanceParameters": null
     },
+    "serviceRawFile": "service: po\n\nprovider:\n  name: aws\n  versionFunctions: false\n  runtime: nodejs18.x\n  region: me-south-1\n  profile: alrida-company\n  memorySize: 3008\n  timeout: 300  # Adjusted to 29 seconds to comply with API Gateway limits\n  apiGateway:\n    binaryMediaTypes:\n      - '*/*'\n  httpApi:\n    cors: true\n\ncustom:\n  esbuild:\n    external:\n      - sharp\n  packagerOptions:\n    scripts:\n      - npm install --arch=x64 --platform=linux sharp\n\nfunctions:\n  main:\n    handler: index.handler\n    environment:\n      MONGO_URL: \"mongodb+srv://yusif:yusif123@cluster0.y4yjo.mongodb.net/?retryWrites=true&w=majority\"\n      TOKEN_SECRET: \"laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs\"\n      ADMIN_SECRET_KEY: \"FoodoYusif123@\"\n      JWT_SECRET: \"1234567890\"\n      TWILIO_ACCOUNT_SID: \"AC910896cde4bfb662ca9fe076b02536e7\"\n      TWILIO_AUTH_TOKEN: \"5ce307ff197422b1b5f97849f4e5db2c\"\n      TWILIO_PHONE_NUMBER: \"+13466666692\"\n      TWILIO_WHATSAPP_PHONE: \"+14155238886\"\n      EMAIL_USERNAME: \"yusifdhrgamtrt@gmail.com\"\n      EMAIL_PASSWORD: \"lzjnrolzwuspywug\"\n      ACCESS_KEY: \"AKIAVCZ3WWWGPXVCKJBA\"\n      SECRET_ACCESS_KEY: \"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\"\n      AWS_NAME: \"codellab\"\n      FB_GRAPH_API_TOKEN: \"EAAIE6J8ewBUBANQt5nEBIURGdgjURdMs3e9A78qWt1uOMOyfThvjSdgoz0q6ZC2ZBNuZCmba7SNRlpWFdeLuLylMEIrLlkxZAmSjKiZAQyr2uVwvJjytGFZBRnywQUbudJBfxQXWx3rCyOZBscmiWlnrbTswIZAWZAZAsDDbsR8lwqNar58Q9swAfNnZB4xUOvQ8BwURyJUAy0wFgZDZD\"\n      VIBER_AUTH_TOKEN: \"50ae4cd97ca7e5c1-27076050a42dc54c-de9a63fa03059af1\"\n      TELEGRAM_BOT_TOKEN: \"5612346036:AAGb0txW0SPrQSToEIQODxI_gMEdVCMJKWs\"\n      ULTRAMSG_API_URL: \"https://api.ultramsg.com/instance87136/messages/chat\"\n      ULTRAMSG_TOKEN: \"2i9r14uumbiddwpb\"\n      EMAIL_USER: \"info@spc-it.com.iq\"\n      EMAIL_PASS: \"AltShiftDel123\"\n      PM2_HOME: ~/.pm2\n    events:\n      - websocket:\n          route: $default\n      - websocket:\n          route: $connect\n      - websocket:\n          route: $disconnect\n      - http:\n          path: /{proxy+}\n          method: ANY\n\n  \n",
+    "command": [
+      "deploy"
+    ],
+    "options": {},
+    "orgId": "183ac4f4-dcac-47e8-9362-a49e26e929ce",
+    "orgName": "yusifdhrgam",
+    "userId": "gkGyS7Ds4jG5JC3YBD",
     "userName": "yusifdhrgam",
-    "subscription": null,
-    "userEmail": "yusifdhrgamtrt@gmail.com",
-    "serviceProviderAwsRegion": "me-south-1",
-    "serviceProviderAwsCredentials": "<REDACTED>",
     "serviceProviderAwsAccountId": "762176151892",
-    "projectType": "traditional",
-    "versionSf": "4.4.19",
     "serviceProviderAwsCfStackName": "po-dev",
-    "integrations": {},
-    "serviceUniqueId": "arn:aws:cloudformation:me-south-1:762176151892:stack/po-dev/b154c250-c8e6-11ef-92ee-0aacbc0b37fb",
     "serviceProviderAwsCfStackId": "arn:aws:cloudformation:me-south-1:762176151892:stack/po-dev/b154c250-c8e6-11ef-92ee-0aacbc0b37fb",
     "serviceProviderAwsCfStackCreated": "2025-01-02T08:51:01.561Z",
-    "serviceProviderAwsCfStackUpdated": "2025-01-27T13:18:18.285Z",
+    "serviceProviderAwsCfStackUpdated": "2025-02-03T10:19:13.466Z",
     "serviceProviderAwsCfStackStatus": "UPDATE_COMPLETE",
     "serviceProviderAwsCfStackOutputs": [
       {
@@ -1234,6 +1120,488 @@
         "OutputValue": "serverless-framework-deployments-me-south-1-8a13aeac-3aab",
         "ExportName": "sls-po-dev-ServerlessDeploymentBucketName"
       }
-    ]
+    ],
+    "compiledCloudFormationTemplate": {
+      "AWSTemplateFormatVersion": "2010-09-09",
+      "Description": "The AWS CloudFormation template for this Serverless application",
+      "Resources": {
+        "MainLogGroup": {
+          "Type": "AWS::Logs::LogGroup",
+          "Properties": {
+            "LogGroupName": "/aws/lambda/po-dev-main"
+          }
+        },
+        "IamRoleLambdaExecution": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": [
+                      "lambda.amazonaws.com"
+                    ]
+                  },
+                  "Action": [
+                    "sts:AssumeRole"
+                  ]
+                }
+              ]
+            },
+            "Policies": [
+              {
+                "PolicyName": {
+                  "Fn::Join": [
+                    "-",
+                    [
+                      "po",
+                      "dev",
+                      "lambda"
+                    ]
+                  ]
+                },
+                "PolicyDocument": {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "logs:CreateLogStream",
+                        "logs:CreateLogGroup",
+                        "logs:TagResource"
+                      ],
+                      "Resource": [
+                        {
+                          "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/po-dev*:*"
+                        }
+                      ]
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "logs:PutLogEvents"
+                      ],
+                      "Resource": [
+                        {
+                          "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/po-dev*:*:*"
+                        }
+                      ]
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "execute-api:ManageConnections"
+                      ],
+                      "Resource": [
+                        {
+                          "Fn::Sub": "arn:${AWS::Partition}:execute-api:*:*:*/@connections/*"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "Path": "/",
+            "RoleName": {
+              "Fn::Join": [
+                "-",
+                [
+                  "po",
+                  "dev",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  "lambdaRole"
+                ]
+              ]
+            }
+          }
+        },
+        "MainLambdaFunction": {
+          "Type": "AWS::Lambda::Function",
+          "Properties": {
+            "Code": {
+              "S3Bucket": "serverless-framework-deployments-me-south-1-8a13aeac-3aab",
+              "S3Key": "serverless/po/dev/1738578460290-2025-02-03T10:27:40.290Z/po.zip"
+            },
+            "Handler": "index.handler",
+            "Runtime": "nodejs18.x",
+            "FunctionName": "po-dev-main",
+            "MemorySize": 3008,
+            "Timeout": 300,
+            "Environment": {
+              "Variables": {
+                "MONGO_URL": "mongodb+srv://yusif:yusif123@cluster0.y4yjo.mongodb.net/?retryWrites=true&w=majority",
+                "TOKEN_SECRET": "<REDACTED>",
+                "ADMIN_SECRET_KEY": "<REDACTED>",
+                "JWT_SECRET": "<REDACTED>",
+                "TWILIO_ACCOUNT_SID": "AC910896cde4bfb662ca9fe076b02536e7",
+                "TWILIO_AUTH_TOKEN": "<REDACTED>",
+                "TWILIO_PHONE_NUMBER": "+13466666692",
+                "TWILIO_WHATSAPP_PHONE": "+14155238886",
+                "EMAIL_USERNAME": "yusifdhrgamtrt@gmail.com",
+                "EMAIL_PASSWORD": "<REDACTED>",
+                "ACCESS_KEY": "<REDACTED>",
+                "SECRET_ACCESS_KEY": "<REDACTED>",
+                "AWS_NAME": "codellab",
+                "FB_GRAPH_API_TOKEN": "<REDACTED>",
+                "VIBER_AUTH_TOKEN": "<REDACTED>",
+                "TELEGRAM_BOT_TOKEN": "<REDACTED>",
+                "ULTRAMSG_API_URL": "https://api.ultramsg.com/instance87136/messages/chat",
+                "ULTRAMSG_TOKEN": "<REDACTED>",
+                "EMAIL_USER": "info@spc-it.com.iq",
+                "EMAIL_PASS": "AltShiftDel123",
+                "PM2_HOME": "~/.pm2"
+              }
+            },
+            "Role": {
+              "Fn::GetAtt": [
+                "IamRoleLambdaExecution",
+                "Arn"
+              ]
+            }
+          },
+          "DependsOn": [
+            "MainLogGroup"
+          ]
+        },
+        "ApiGatewayRestApi": {
+          "Type": "AWS::ApiGateway::RestApi",
+          "Properties": {
+            "Name": "dev-po",
+            "BinaryMediaTypes": [
+              "*/*"
+            ],
+            "EndpointConfiguration": {
+              "Types": [
+                "EDGE"
+              ]
+            },
+            "Policy": ""
+          }
+        },
+        "ApiGatewayResourceProxyVar": {
+          "Type": "AWS::ApiGateway::Resource",
+          "Properties": {
+            "ParentId": {
+              "Fn::GetAtt": [
+                "ApiGatewayRestApi",
+                "RootResourceId"
+              ]
+            },
+            "PathPart": "{proxy+}",
+            "RestApiId": {
+              "Ref": "ApiGatewayRestApi"
+            }
+          }
+        },
+        "ApiGatewayMethodProxyVarAny": {
+          "Type": "AWS::ApiGateway::Method",
+          "Properties": {
+            "HttpMethod": "ANY",
+            "RequestParameters": {},
+            "ResourceId": {
+              "Ref": "ApiGatewayResourceProxyVar"
+            },
+            "RestApiId": {
+              "Ref": "ApiGatewayRestApi"
+            },
+            "ApiKeyRequired": "<REDACTED>",
+            "AuthorizationType": "NONE",
+            "Integration": {
+              "IntegrationHttpMethod": "POST",
+              "Type": "AWS_PROXY",
+              "Uri": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":apigateway:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":lambda:path/2015-03-31/functions/",
+                    {
+                      "Fn::GetAtt": [
+                        "MainLambdaFunction",
+                        "Arn"
+                      ]
+                    },
+                    "/invocations"
+                  ]
+                ]
+              }
+            },
+            "MethodResponses": []
+          },
+          "DependsOn": [
+            "MainLambdaPermissionApiGateway"
+          ]
+        },
+        "ApiGatewayDeployment1738578391584": {
+          "Type": "AWS::ApiGateway::Deployment",
+          "Properties": {
+            "RestApiId": {
+              "Ref": "ApiGatewayRestApi"
+            },
+            "StageName": "dev"
+          },
+          "DependsOn": [
+            "ApiGatewayMethodProxyVarAny"
+          ]
+        },
+        "MainLambdaPermissionApiGateway": {
+          "Type": "AWS::Lambda::Permission",
+          "Properties": {
+            "FunctionName": {
+              "Fn::GetAtt": [
+                "MainLambdaFunction",
+                "Arn"
+              ]
+            },
+            "Action": "lambda:InvokeFunction",
+            "Principal": "apigateway.amazonaws.com",
+            "SourceArn": {
+              "Fn::Join": [
+                "",
+                [
+                  "arn:",
+                  {
+                    "Ref": "AWS::Partition"
+                  },
+                  ":execute-api:",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  ":",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  ":",
+                  {
+                    "Ref": "ApiGatewayRestApi"
+                  },
+                  "/*/*"
+                ]
+              ]
+            }
+          }
+        },
+        "WebsocketsApi": {
+          "Type": "AWS::ApiGatewayV2::Api",
+          "Properties": {
+            "Name": "dev-po-websockets",
+            "RouteSelectionExpression": "$request.body.action",
+            "Description": "Serverless Websockets",
+            "ProtocolType": "WEBSOCKET"
+          }
+        },
+        "MainWebsocketsIntegration": {
+          "Type": "AWS::ApiGatewayV2::Integration",
+          "Properties": {
+            "ApiId": {
+              "Ref": "WebsocketsApi"
+            },
+            "IntegrationType": "AWS_PROXY",
+            "IntegrationUri": {
+              "Fn::Join": [
+                "",
+                [
+                  "arn:",
+                  {
+                    "Ref": "AWS::Partition"
+                  },
+                  ":apigateway:",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  ":lambda:path/2015-03-31/functions/",
+                  {
+                    "Fn::GetAtt": [
+                      "MainLambdaFunction",
+                      "Arn"
+                    ]
+                  },
+                  "/invocations"
+                ]
+              ]
+            }
+          }
+        },
+        "MainLambdaPermissionWebsockets": {
+          "Type": "AWS::Lambda::Permission",
+          "DependsOn": [
+            "WebsocketsApi",
+            "MainLambdaFunction"
+          ],
+          "Properties": {
+            "FunctionName": {
+              "Fn::GetAtt": [
+                "MainLambdaFunction",
+                "Arn"
+              ]
+            },
+            "Action": "lambda:InvokeFunction",
+            "Principal": "apigateway.amazonaws.com"
+          }
+        },
+        "SdefaultWebsocketsRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "ApiId": {
+              "Ref": "WebsocketsApi"
+            },
+            "RouteKey": "$default",
+            "AuthorizationType": "NONE",
+            "Target": {
+              "Fn::Join": [
+                "/",
+                [
+                  "integrations",
+                  {
+                    "Ref": "MainWebsocketsIntegration"
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "SconnectWebsocketsRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "ApiId": {
+              "Ref": "WebsocketsApi"
+            },
+            "RouteKey": "$connect",
+            "AuthorizationType": "NONE",
+            "Target": {
+              "Fn::Join": [
+                "/",
+                [
+                  "integrations",
+                  {
+                    "Ref": "MainWebsocketsIntegration"
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "SdisconnectWebsocketsRoute": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "ApiId": {
+              "Ref": "WebsocketsApi"
+            },
+            "RouteKey": "$disconnect",
+            "AuthorizationType": "NONE",
+            "Target": {
+              "Fn::Join": [
+                "/",
+                [
+                  "integrations",
+                  {
+                    "Ref": "MainWebsocketsIntegration"
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "WebsocketsDeploymentStage": {
+          "Type": "AWS::ApiGatewayV2::Stage",
+          "Properties": {
+            "ApiId": {
+              "Ref": "WebsocketsApi"
+            },
+            "StageName": "dev",
+            "Description": "Serverless Websockets",
+            "DeploymentId": {
+              "Ref": "WebsocketsDeploymentKINrhckIiakS8Io73076QfdCEfYBAlVHMiv5qCS6l78"
+            }
+          }
+        },
+        "WebsocketsDeploymentKINrhckIiakS8Io73076QfdCEfYBAlVHMiv5qCS6l78": {
+          "Type": "AWS::ApiGatewayV2::Deployment",
+          "DependsOn": [
+            "SdefaultWebsocketsRoute",
+            "SconnectWebsocketsRoute",
+            "SdisconnectWebsocketsRoute"
+          ],
+          "Properties": {
+            "ApiId": {
+              "Ref": "WebsocketsApi"
+            },
+            "Description": "Serverless Websockets"
+          }
+        }
+      },
+      "Outputs": {
+        "ServerlessDeploymentBucketName": {
+          "Value": "serverless-framework-deployments-me-south-1-8a13aeac-3aab",
+          "Export": {
+            "Name": "sls-po-dev-ServerlessDeploymentBucketName"
+          }
+        },
+        "ServiceEndpoint": {
+          "Description": "URL of the service endpoint",
+          "Value": {
+            "Fn::Join": [
+              "",
+              [
+                "https://",
+                {
+                  "Ref": "ApiGatewayRestApi"
+                },
+                ".execute-api.",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ".",
+                {
+                  "Ref": "AWS::URLSuffix"
+                },
+                "/dev"
+              ]
+            ]
+          },
+          "Export": {
+            "Name": "sls-po-dev-ServiceEndpoint"
+          }
+        },
+        "ServiceEndpointWebsocket": {
+          "Description": "URL of the service endpoint",
+          "Value": {
+            "Fn::Join": [
+              "",
+              [
+                "wss://",
+                {
+                  "Ref": "WebsocketsApi"
+                },
+                ".execute-api.",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ".",
+                {
+                  "Ref": "AWS::URLSuffix"
+                },
+                "/dev"
+              ]
+            ]
+          },
+          "Export": {
+            "Name": "sls-po-dev-ServiceEndpointWebsocket"
+          }
+        }
+      }
+    }
   }
 }

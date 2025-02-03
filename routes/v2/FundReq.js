@@ -9,6 +9,7 @@ const logActivity = require('../../utils/activityLogger');
 const sendEmailNotification = require('../../utils/emailNotification');
 const jwt = require('jsonwebtoken');
 const Entity = require('../../model/v2/Entity');
+const FundRequestCounter = require('../../model/v2/FundRequestCounter');
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
@@ -73,6 +74,7 @@ const checkPermission = (permission) => {
 router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundRequest'), async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
+  
   try {
     const { workflowId } = req.params;
     const { description, amount, currency, requestFundType, requestedBy, project, department, details, documents, items, requestDate } = req.body;
@@ -82,7 +84,22 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
       return res.status(400).json({ message: 'At least one item is required in the fund request.' });
     }
 
+    // Generate today's date in format YYYYMMDD
+    const today = new Date();
+    const formattedDate = today.toISOString().split('T')[0].replace(/-/g, ''); // e.g., 20250101
+
+    // Find and increment the counter for today
+    const counter = await FundRequestCounter.findOneAndUpdate(
+      { date: formattedDate },
+      { $inc: { sequence: 1 } },
+      { new: true, upsert: true, session }
+    );
+
+    // Generate the unique request code
+    const uniqueCode = `${formattedDate}-${String(counter.sequence).padStart(6, '0')}`; // e.g., 20250101-000001
+
     const fundRequest = new FundRequest({
+      uniqueCode, // Add the unique code to the request
       description,
       amount,
       currency,
@@ -96,6 +113,7 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
       items,
       requestDate: requestDate || Date.now()
     });
+
     await fundRequest.save({ session });
 
     // Validate assigned workflow
@@ -111,6 +129,7 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
       createdBy: req.adminId,
       status: 'Pending'
     });
+
     await workflow.save({ session });
 
     await logActivity({
@@ -125,11 +144,12 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
     await session.commitTransaction();
     session.endSession();
 
-    res.status(201).json({ message: 'Fund request created successfully.', fundRequest, workflow });
+    res.status(201).json({ message: 'Fund request created successfully.', uniqueCode, fundRequest, workflow });
+
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    console.log(error);
+    console.error(error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -140,7 +160,7 @@ router.get(
   checkPermission("View_FundRequests"),
   async (req, res) => {
     try {
-      const userId = req.adminId; // from token middleware
+      const userId = req.adminId; // Extract user ID from token
       if (!userId) {
         return res.status(400).json({ message: "Invalid user ID." });
       }
@@ -150,41 +170,53 @@ router.get(
       const limitNumber = parseInt(limit, 10);
       const skip = (pageNumber - 1) * limitNumber;
 
-      // Base aggregation pipeline
+      // Build the aggregation pipeline
       let pipeline = [
-        {
-          $match: {
-            steps: {
-              $elemMatch: {
-                approvedBy: new mongoose.Types.ObjectId(userId),
-                status: { $in: ["Approved", "Rejected", "Canceled"] },
-              },
-            },
-          },
-        },
+        // 1) First lookup from ApprovalWorkflow
         {
           $lookup: {
-            from: "fundrequests", // Collection where Fund Requests are stored
-            localField: "transactionId",
+            from: "approvalworkflows",
+            localField: "_id",            // FundRequest._id
+            foreignField: "transactionId", // ApprovalWorkflow.transactionId
+            as: "workflowData"
+          },
+        },
+        // 2) Now match on either the user is the request creator
+        //    OR the user has approved (approvedBy) in any step
+        {
+          $match: {
+            $or: [
+              { requestedBy: new mongoose.Types.ObjectId(userId) },
+              { "workflowData.steps.approvedBy": new mongoose.Types.ObjectId(userId) },
+            ],
+          },
+        },
+        // 3) Lookup the requester details
+        {
+          $lookup: {
+            from: "admins", // Fetch requester details
+            localField: "requestedBy",
             foreignField: "_id",
-            as: "transactionDoc",
+            as: "requester",
           },
         },
         {
           $unwind: {
-            path: "$transactionDoc",
+            path: "$requester",
             preserveNullAndEmptyArrays: true,
           },
         },
       ];
 
-      // Apply search filter if search term is provided
+      // Apply search filter if provided
       if (search) {
         pipeline.push({
           $match: {
             $or: [
-              { "transactionDoc.description": { $regex: search, $options: "i" } }, // Case-insensitive description search
-              { "transactionDoc.amount": isNaN(search) ? -1 : parseFloat(search) }, // Search by amount
+              { description: { $regex: search, $options: "i" } },
+              { amount: isNaN(search) ? -1 : parseFloat(search) },
+              { uniqueCode: { $regex: search, $options: "i" } },
+              { "requester.name": { $regex: search, $options: "i" } },
             ],
           },
         });
@@ -201,10 +233,9 @@ router.get(
         }
       );
 
-      // Execute aggregation query
-      const [result = {}] = await ApprovalWorkflow.aggregate(pipeline);
+      // Execute query
+      const [result = {}] = await FundRequest.aggregate(pipeline);
       const { paginatedResults = [], totalCount = [] } = result;
-
       const total = totalCount[0]?.count || 0;
 
       return res.status(200).json({
@@ -220,6 +251,7 @@ router.get(
     }
   }
 );
+
 
 // Approve Fund Request
 router.post('/fund-requests/:workflowId/approve', checkPermission('Approve_FundRequest'), async (req, res) => {
@@ -771,6 +803,7 @@ router.get('/myRequests', checkPermission('View_FundRequests'), async (req, res)
                   _id: workflow.transactionId?._id,
                   description: workflow.transactionId?.description,
                   amount: workflow.transactionId?.amount,
+                  currnecy: workflow.transactionId?.currency,
                   status: workflow.transactionId?.status,
                   requestedBy: workflow.transactionId?.requestedBy,
               },

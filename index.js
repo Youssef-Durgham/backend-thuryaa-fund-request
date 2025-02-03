@@ -24,7 +24,6 @@ const Trash = require("./routes/Trash");
 const Cart = require("./routes/Cart");
 const Keycard = require("./routes/Keycard");
 const Banner = require("./routes/Banner");
-const Reports = require("./routes/Reports");
 const Uploadbulk = require("./routes/UploadBulk");
 const { router: Notification, checkOrdersAndSendReminders, checkItemsAndSendReminders } = require("./routes/Nontification");
 const boxRoutes = require('./routes/v2/boxes');
@@ -54,6 +53,7 @@ const approvalsRouter = require('./routes/v2/approvals');
 const journalTemplatesRoutes = require('./routes/v2/journalTemplates');
 const entityManagments = require('./routes/v2/entityManagement');
 const FundReq = require('./routes/v2/FundReq');
+const Reports = require('./routes/v2/report');
 
 
 const serverless = require('serverless-http');
@@ -120,7 +120,6 @@ app.use("/Trash", Trash);
 app.use("/Cart", Cart);
 app.use("/Keycard", Keycard);
 app.use("/Banner", Banner);
-app.use("/Reports", Reports);
 app.use("/Uploadbulk", Uploadbulk);
 app.use("/Notification", Notification);
 
@@ -151,6 +150,7 @@ app.use('/api', approvalWorkflowsRouter);
 app.use('/api', approvalsRouter);
 app.use('/api', entityManagments);
 app.use('/api/FundReq', FundReq);
+app.use('/api/reports', Reports);
 
 
 // Lambda function handler

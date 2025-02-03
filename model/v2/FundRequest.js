@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const fundRequestSchema = new mongoose.Schema({
+  uniqueCode: { type: String, unique: true, required: true },
   description: { type: String, required: true },
   amount: { type: Number, required: true },
   currency: { type: String, enum: ['USD', 'IQD', 'EUR'], required: true }, // Currency field
@@ -10,7 +11,7 @@ const fundRequestSchema = new mongoose.Schema({
   department: { type: String, required: true }, // Reference to department
   status: { type: String, enum: ['Pending', 'Approved', 'Rejected', 'Canceled'], default: 'Pending' },
   details: { type: mongoose.Schema.Types.Mixed }, // Additional details
-  documents: [{ type: String }], // Array to store document URLs
+  documents: [{ type: String }],
   items: [
     {
       name: { type: String, required: true },
