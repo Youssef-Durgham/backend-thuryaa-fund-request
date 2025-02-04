@@ -62,75 +62,76 @@ const checkPermission = (permission) => {
 
 
 router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
-    try {
-      // Read query parameters
-      let {
-        page = 1,
-        limit = 50,
-        search,
-        status,
-        currency,
-        requestFundType,
-        fromDate,
-        toDate
-      } = req.query;
-      
-      page = parseInt(page);
-      limit = parseInt(limit);
-  
-      // Build the filter object
-      const filter = {};
-  
-      // Filtering by exact fields
-      if (status) {
-        filter.status = status;
-      }
-      if (currency) {
-        filter.currency = currency;
-      }
-      if (requestFundType) {
-        filter.requestFundType = requestFundType;
-      }
-  
-      // Filtering by a date range on the requestDate field
-      if (fromDate || toDate) {
-        filter.requestDate = {};
-        if (fromDate) {
-          filter.requestDate.$gte = new Date(fromDate);
-        }
-        if (toDate) {
-          filter.requestDate.$lte = new Date(toDate);
-        }
-      }
-  
-      // If search is provided, search in specific text fields (e.g. uniqueCode and description)
-      if (search) {
-        filter.$or = [
-          { uniqueCode: { $regex: search, $options: 'i' } },
-          { description: { $regex: search, $options: 'i' } }
-        ];
-      }
-  
-      // Get total count for pagination
-      const total = await FundRequest.countDocuments(filter);
-  
-      // Retrieve fund requests with pagination and sorting (most recent first)
-      const fundRequests = await FundRequest.find(filter)
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit);
-  
-      res.json({
-        total,
-        page,
-        pages: Math.ceil(total / limit),
-        fundRequests
-      });
-    } catch (error) {
-      console.error("Error fetching fund requests:", error);
-      res.status(500).json({ message: "Server Error" });
+  try {
+    // Read query parameters
+    let {
+      page = 1,
+      limit = 50,
+      search,
+      status,
+      currency,
+      requestFundType,
+      fromDate,
+      toDate
+    } = req.query;
+    
+    page = parseInt(page);
+    limit = parseInt(limit);
+
+    // Build the filter object
+    const filter = {};
+
+    // Filtering by exact fields
+    if (status) {
+      filter.status = status;
     }
-  });
+    if (currency) {
+      filter.currency = currency;
+    }
+    if (requestFundType) {
+      filter.requestFundType = requestFundType;
+    }
+
+    // Filtering by a date range on the requestDate field
+    if (fromDate || toDate) {
+      filter.requestDate = {};
+      if (fromDate) {
+        filter.requestDate.$gte = new Date(fromDate);
+      }
+      if (toDate) {
+        filter.requestDate.$lte = new Date(toDate);
+      }
+    }
+
+    // If search is provided, search in specific text fields (e.g. uniqueCode and description)
+    if (search) {
+      filter.$or = [
+        { uniqueCode: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Get total count for pagination
+    const total = await FundRequest.countDocuments(filter);
+
+    // Retrieve fund requests with pagination, sorting, and populate the requestedBy field
+    const fundRequests = await FundRequest.find(filter)
+      .populate('requestedBy', 'name phone email') // Populate requester details; adjust fields as needed
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    res.json({
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      fundRequests
+    });
+  } catch (error) {
+    console.error("Error fetching fund requests:", error);
+    res.status(500).json({ message: "Server Error" });
+  }
+});
 
 
 router.get('/fund-requests/statistics', checkPermission('Report'), async (req, res) => {

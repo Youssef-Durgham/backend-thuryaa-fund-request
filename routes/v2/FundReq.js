@@ -76,8 +76,21 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
   session.startTransaction();
   
   try {
-    const { workflowId } = req.params;
-    const { description, amount, currency, requestFundType, requestedBy, project, department, details, documents, items, requestDate } = req.body;
+    const { 
+      description, 
+      amount, 
+      currency, 
+      requestFundType, 
+      requestedBy, 
+      // New fields:
+      companyName,
+      projectName,
+      department, 
+      details, 
+      documents, 
+      items, 
+      requestDate 
+    } = req.body;
 
     // Validate items array
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -99,13 +112,15 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
     const uniqueCode = `${formattedDate}-${String(counter.sequence).padStart(6, '0')}`; // e.g., 20250101-000001
 
     const fundRequest = new FundRequest({
-      uniqueCode, // Add the unique code to the request
+      uniqueCode,
       description,
       amount,
       currency,
       requestFundType,
       requestedBy,
-      project,
+      // Save the new fields:
+      companyName,
+      projectName,
       department,
       details,
       documents, // Add document URLs
@@ -117,7 +132,7 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
     await fundRequest.save({ session });
 
     // Validate assigned workflow
-    const assignedWorkflow = await AssignedWorkflow.findById(workflowId);
+    const assignedWorkflow = await AssignedWorkflow.findById(req.params.workflowId);
     if (!assignedWorkflow) {
       throw new Error('Assigned workflow not found.');
     }
@@ -138,14 +153,13 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
       targetItem: fundRequest._id,
       itemType: 'FundRequest',
       userType: 'Admin',
-      description: `Full fund request created with workflow ID ${workflowId}`
+      description: `Full fund request created with workflow ID ${req.params.workflowId}`
     });
 
     await session.commitTransaction();
     session.endSession();
 
     res.status(201).json({ message: 'Fund request created successfully.', uniqueCode, fundRequest, workflow });
-
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
