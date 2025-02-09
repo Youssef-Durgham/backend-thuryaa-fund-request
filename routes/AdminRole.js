@@ -128,6 +128,7 @@ router.put('/update-role/:id/permissions', checkPermission('add_roles'), async (
 
     res.status(200).json({ message: 'Role updated successfully', role });
   } catch (error) {
+    console.log(error)
     res.status(500).json({ message: 'Server error', error });
   }
 });
