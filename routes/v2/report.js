@@ -72,9 +72,11 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
       currency,
       requestFundType,
       fromDate,
-      toDate
+      toDate,
+      minAmount,
+      maxAmount
     } = req.query;
-    
+
     page = parseInt(page);
     limit = parseInt(limit);
 
@@ -92,7 +94,7 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
       filter.requestFundType = requestFundType;
     }
 
-    // Filtering by a date range on the requestDate field
+    // Filtering by date range on the requestDate field
     if (fromDate || toDate) {
       filter.requestDate = {};
       if (fromDate) {
@@ -103,12 +105,34 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
       }
     }
 
-    // If search is provided, search in specific text fields (e.g. uniqueCode and description)
+    // Filtering by amount range
+    if (minAmount || maxAmount) {
+      filter.amount = {};
+      if (minAmount) {
+        filter.amount.$gte = parseFloat(minAmount);
+      }
+      if (maxAmount) {
+        filter.amount.$lte = parseFloat(maxAmount);
+      }
+    }
+
+    // If search is provided, search in specific text fields (e.g., uniqueCode, description, and amount)
     if (search) {
-      filter.$or = [
-        { uniqueCode: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
-      ];
+      const numericSearch = parseFloat(search);
+      if (!isNaN(numericSearch)) {
+        // If the search term is a number, also search in the amount field
+        filter.$or = [
+          { uniqueCode: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } },
+          { amount: numericSearch } // Exact match for numeric amounts
+        ];
+      } else {
+        // If not a number, search only in text fields
+        filter.$or = [
+          { uniqueCode: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } }
+        ];
+      }
     }
 
     // Get total count for pagination
