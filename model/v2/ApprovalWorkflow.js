@@ -16,6 +16,7 @@ const approvalWorkflowSchema = new mongoose.Schema({
   currentLevel: { type: Number, default: 1 },
   status: { type: String, enum: ['Pending', 'Approved', 'Rejected', 'Canceled'], default: 'Pending' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', required: true },
+  assignedWorkflow: { type: mongoose.Schema.Types.ObjectId, ref: 'AssignedWorkflow', required: true },
   createdAt: { type: Date, default: Date.now }
 });
   
