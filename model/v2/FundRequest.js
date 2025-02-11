@@ -5,7 +5,7 @@ const fundRequestSchema = new mongoose.Schema({
   description: { type: String, required: true },
   amount: { type: Number, required: true },
   currency: { type: String, enum: ['USD', 'IQD', 'EUR'], required: true }, // Currency field
-  requestFundType: { type: String, enum: ['Operational', 'Capital', 'Emergency'], required: true }, // Fund Type
+  requestFundType: { type: String, required: true }, // Fund Type
   requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', required: true },
   project: { type: String, required: false }, // Reference to project
   department: { type: String, required: true }, // Reference to department
