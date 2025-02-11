@@ -142,7 +142,8 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
       transactionId: fundRequest._id,
       steps: assignedWorkflow.steps,
       createdBy: req.adminId,
-      status: 'Pending'
+      status: 'Pending',
+      assignedWorkflow: req.params.workflowId
     });
 
     await workflow.save({ session });
@@ -169,102 +170,103 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
 });
 
 // get history log of a fund request
-router.get(
-  "/workflows/user-approvals",
-  checkPermission("View_FundRequests"),
-  async (req, res) => {
-    try {
-      const userId = req.adminId; // Extract user ID from token
-      if (!userId) {
-        return res.status(400).json({ message: "Invalid user ID." });
-      }
-
-      const { page = 1, limit = 10, search = "" } = req.query;
-      const pageNumber = parseInt(page, 10);
-      const limitNumber = parseInt(limit, 10);
-      const skip = (pageNumber - 1) * limitNumber;
-
-      // Build the aggregation pipeline
-      let pipeline = [
-        // 1) First lookup from ApprovalWorkflow
-        {
-          $lookup: {
-            from: "approvalworkflows",
-            localField: "_id",            // FundRequest._id
-            foreignField: "transactionId", // ApprovalWorkflow.transactionId
-            as: "workflowData"
-          },
-        },
-        // 2) Now match on either the user is the request creator
-        //    OR the user has approved (approvedBy) in any step
-        {
-          $match: {
-            $or: [
-              { requestedBy: new mongoose.Types.ObjectId(userId) },
-              { "workflowData.steps.approvedBy": new mongoose.Types.ObjectId(userId) },
-            ],
-          },
-        },
-        // 3) Lookup the requester details
-        {
-          $lookup: {
-            from: "admins", // Fetch requester details
-            localField: "requestedBy",
-            foreignField: "_id",
-            as: "requester",
-          },
-        },
-        {
-          $unwind: {
-            path: "$requester",
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-      ];
-
-      // Apply search filter if provided
-      if (search) {
-        pipeline.push({
-          $match: {
-            $or: [
-              { description: { $regex: search, $options: "i" } },
-              { amount: isNaN(search) ? -1 : parseFloat(search) },
-              { uniqueCode: { $regex: search, $options: "i" } },
-              { "requester.name": { $regex: search, $options: "i" } },
-            ],
-          },
-        });
-      }
-
-      // Sorting & Pagination
-      pipeline.push(
-        { $sort: { createdAt: -1 } },
-        {
-          $facet: {
-            paginatedResults: [{ $skip: skip }, { $limit: limitNumber }],
-            totalCount: [{ $count: "count" }],
-          },
-        }
-      );
-
-      // Execute query
-      const [result = {}] = await FundRequest.aggregate(pipeline);
-      const { paginatedResults = [], totalCount = [] } = result;
-      const total = totalCount[0]?.count || 0;
-
-      return res.status(200).json({
-        message: "Workflows retrieved successfully.",
-        totalRequests: total,
-        currentPage: pageNumber,
-        totalPages: Math.ceil(total / limitNumber),
-        workflows: paginatedResults,
-      });
-    } catch (error) {
-      console.error("Error fetching user-approvals workflows:", error);
-      res.status(500).json({ message: "Server error", error: error.message });
+router.get("/workflows/user-approvals", checkPermission("View_FundRequests"), async (req, res) => {
+  try {
+    const userId = req.adminId; // Extract user ID from token
+    if (!userId) {
+      return res.status(400).json({ message: "Invalid user ID." });
     }
+
+    const { page = 1, limit = 10, search = "", workflowId } = req.query;
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    // Build the aggregation pipeline
+    const pipeline = [
+      // 1) Lookup from ApprovalWorkflow: join each FundRequest with its workflow(s)
+      {
+        $lookup: {
+          from: "approvalworkflows",
+          localField: "_id",            // FundRequest._id
+          foreignField: "transactionId", // ApprovalWorkflow.transactionId
+          as: "workflowData"
+        }
+      },
+      // 2) Match either if the current user is the request creator or has approved in any step
+      {
+        $match: {
+          $or: [
+            { requestedBy: new mongoose.Types.ObjectId(userId) },
+            { "workflowData.steps.approvedBy": new mongoose.Types.ObjectId(userId) }
+          ]
+        }
+      },
+      // 3) If a workflowId is provided, match FundRequests whose joined workflow has that assignedWorkflow
+      ...(workflowId ? [{
+        $match: {
+          "workflowData.assignedWorkflow": new mongoose.Types.ObjectId(workflowId)
+        }
+      }] : []),
+      // 4) Lookup requester details
+      {
+        $lookup: {
+          from: "admins", // Fetch requester details
+          localField: "requestedBy",
+          foreignField: "_id",
+          as: "requester",
+        }
+      },
+      {
+        $unwind: {
+          path: "$requester",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+    ];
+
+    // Apply search filter if provided
+    if (search) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { description: { $regex: search, $options: "i" } },
+            { amount: isNaN(search) ? -1 : parseFloat(search) },
+            { uniqueCode: { $regex: search, $options: "i" } },
+            { "requester.name": { $regex: search, $options: "i" } },
+          ],
+        },
+      });
+    }
+
+    // Sorting & Pagination
+    pipeline.push(
+      { $sort: { createdAt: -1 } },
+      {
+        $facet: {
+          paginatedResults: [{ $skip: skip }, { $limit: limitNumber }],
+          totalCount: [{ $count: "count" }],
+        },
+      }
+    );
+
+    // Execute the aggregation query
+    const [result = {}] = await FundRequest.aggregate(pipeline);
+    const { paginatedResults = [], totalCount = [] } = result;
+    const total = totalCount[0]?.count || 0;
+
+    return res.status(200).json({
+      message: "Workflows retrieved successfully.",
+      totalRequests: total,
+      currentPage: pageNumber,
+      totalPages: Math.ceil(total / limitNumber),
+      workflows: paginatedResults,
+    });
+  } catch (error) {
+    console.error("Error fetching user-approvals workflows:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
-);
+});
 
 
 // Approve Fund Request
@@ -766,70 +768,97 @@ console.log(userRequests)
 
 router.get('/myRequests', checkPermission('View_FundRequests'), async (req, res) => {
   try {
-      const userObjectId = new mongoose.Types.ObjectId(req.adminId);
+    const userObjectId = new mongoose.Types.ObjectId(req.adminId);
+    const pipeline = [
+      // Match FundRequests created by the user
+      { $match: { requestedBy: userObjectId } },
+      // Join with ApprovalWorkflow on FundRequest._id = ApprovalWorkflow.transactionId
+      {
+        $lookup: {
+          from: "approvalworkflows",
+          localField: "_id",
+          foreignField: "transactionId",
+          as: "workflowData"
+        }
+      },
+      // If a workflowId is provided, filter by it (using the field in ApprovalWorkflow)
+      ...(req.query.workflowId ? [{
+        $match: { "workflowData.assignedWorkflow": new mongoose.Types.ObjectId(req.query.workflowId) }
+      }] : []),
+      // Lookup the requester details (optional, if needed)
+      {
+        $lookup: {
+          from: "admins",
+          localField: "requestedBy",
+          foreignField: "_id",
+          as: "requestedByDetails"
+        }
+      },
+      {
+        $unwind: {
+          path: "$requestedByDetails",
+          preserveNullAndEmptyArrays: true
+        }
+      }
+    ];
 
-      // 1) My Requests (created by this user)
-      const myRequests = await FundRequest.find({ requestedBy: userObjectId })
-          .populate('requestedBy', 'name phone')
-          .exec();
+    const myRequests = await FundRequest.aggregate(pipeline);
 
-      // 2) Pending workflows requiring action from current user
-      const pendingWorkflows = await ApprovalWorkflow.find({
-          transactionType: 'po',
-          status: 'Pending',
-          'steps': {
-              $elemMatch: {
-                  approvers: userObjectId,
-                  status: 'Pending'
-              }
-          }
+    // Pending workflows remain the same as in Option 1
+    const pendingQuery = {
+      status: 'Pending',
+      'steps': {
+        $elemMatch: {
+          approvers: userObjectId,
+          status: 'Pending'
+        }
+      }
+    };
+
+    if (req.query.workflowId) {
+      pendingQuery.assignedWorkflow = new mongoose.Types.ObjectId(req.query.workflowId);
+    }
+
+    const pendingWorkflows = await ApprovalWorkflow.find(pendingQuery)
+      .populate({
+        path: 'transactionId',
+        populate: { path: 'requestedBy', select: 'name phone' }
       })
       .populate({
-          path: 'transactionId',
-          populate: {
-              path: 'requestedBy',
-              select: 'name phone'
-          }
-      })
-      .populate({
-          path: 'steps.approvers',
-          select: 'name phone'
+        path: 'steps.approvers',
+        select: 'name phone'
       })
       .exec();
 
-      // Filter workflows where user is approver at current level
-      const pendingRequests = pendingWorkflows
-          .filter(workflow => {
-              const currentStepIndex = workflow.steps.findIndex(step => 
-                  step.level === workflow.currentLevel
-              );
-              if (currentStepIndex === -1) return false;
-              
-              const currentStep = workflow.steps[currentStepIndex];
-              return currentStep.status === 'Pending' && 
-                     currentStep.approvers.some(approver => 
-                         approver._id.toString() === userObjectId.toString()
-                     );
-          })
-          .map(workflow => ({
-              _id: workflow._id,
-              transactionId: {
-                  _id: workflow.transactionId?._id,
-                  description: workflow.transactionId?.description,
-                  amount: workflow.transactionId?.amount,
-                  currnecy: workflow.transactionId?.currency,
-                  status: workflow.transactionId?.status,
-                  requestedBy: workflow.transactionId?.requestedBy,
-              },
-              workflowStatus: workflow.status,
-              currentLevel: workflow.currentLevel,
-              steps: workflow.steps,
-          }));
+    const pendingRequests = pendingWorkflows.filter(workflow => {
+      const currentStep = workflow.steps.find(
+        step => step.level === workflow.currentLevel
+      );
+      if (!currentStep) return false;
+      const approverIds = currentStep.approvers.map(approver =>
+        (approver._id ? approver._id.toString() : approver.toString())
+      );
+      return currentStep.status === 'Pending' &&
+             approverIds.includes(userObjectId.toString());
+    }).map(workflow => ({
+      _id: workflow._id,
+      transactionId: {
+        _id: workflow.transactionId?._id,
+        description: workflow.transactionId?.description,
+        amount: workflow.transactionId?.amount,
+        currency: workflow.transactionId?.currency,
+        status: workflow.transactionId?.status,
+        requestedBy: workflow.transactionId?.requestedBy,
+      },
+      workflowStatus: workflow.status,
+      currentLevel: workflow.currentLevel,
+      steps: workflow.steps,
+    }));
 
-      res.json({ myRequests, pendingRequests });
+    res.json({ myRequests, pendingRequests });
   } catch (error) {
-      console.error('Error in GET /fundRequests/myRequests:', error);
-      res.status(500).json({ error: 'Internal server error' });
+    console.error('Error in GET /fundRequests/myRequests:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -878,7 +907,7 @@ router.get('/workflows', checkPermission('View_Workflows'), async (req, res) => 
     }
   });
 
-  router.post('/assigned-workflows', checkPermission('Manage_AssignedWorkflow'), async (req, res) => {
+router.post('/assigned-workflows', checkPermission('Manage_AssignedWorkflow'), async (req, res) => {
     try {
       const { transactionType, steps } = req.body;
   
