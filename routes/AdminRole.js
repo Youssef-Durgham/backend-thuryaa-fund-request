@@ -329,12 +329,12 @@ router.get('/admin/roles', authenticate, async (req, res) => {
       return res.status(404).json({ message: 'Entity with code C1 not found.' });
     }
 
-    // Fetch the admin and populate roles for entity C1
+    // Fetch the admin and populate entity roles
     const admin = await Admin.findById(req.userId)
       .populate('currentEntity')
       .populate({
         path: 'entityRoles',
-        match: { entity: entityC1._id }, // Always match to C1's ID
+        match: { entity: entityC1._id }, // Filter by entity C1
         populate: {
           path: 'roles',
           model: 'Role'
@@ -346,19 +346,32 @@ router.get('/admin/roles', authenticate, async (req, res) => {
     }
 
     // Get roles for entity C1
-    const entityRoles = admin.entityRoles.find(
+    const entityRolesC1 = admin.entityRoles.filter(
       er => er.entity.toString() === entityC1._id.toString()
     );
 
-    let rolesData = [];
-    if (entityRoles) {
-      rolesData = await Role.find({ _id: { $in: entityRoles.roles } });
+    let combinedPermissions = new Set(); // Using Set to store unique permissions
+
+    if (entityRolesC1.length > 0) {
+      const roleIds = entityRolesC1.flatMap(er => er.roles.map(role => role._id));
+      const rolesDataC1 = await Role.find({ _id: { $in: roleIds } });
+
+      // Merge all permissions into a unique list
+      rolesDataC1.forEach(role => {
+        role.permissions.forEach(permission => combinedPermissions.add(permission));
+      });
     }
 
+    // Create a new merged role object
+    const mergedRole = {
+      name: "Merged Role Group", // Name for the combined role
+      permissions: Array.from(combinedPermissions) // Unique permissions
+    };
+
     res.json({
-      roles: rolesData,
-      entity: entityC1, // Return C1's details
-      type: admin.type, // Include admin type
+      roles: [mergedRole], // Return a single role with combined permissions
+      entity: entityC1, // Entity details
+      type: admin.type, // Admin type
     });
   } catch (error) {
     console.error(error);
