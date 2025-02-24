@@ -4,6 +4,7 @@ const FundRequest = require('../../model/v2/FundRequest');
 const { Admin } = require('../../model/Users');
 const jwt = require('jsonwebtoken');
 const Entity = require('../../model/v2/Entity');
+const ApprovalWorkflow = require('../../model/v2/ApprovalWorkflow');
 
 
 const router = express.Router();
@@ -63,7 +64,7 @@ const checkPermission = (permission) => {
 
 router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
   try {
-    // Read query parameters
+    // Read query parameters including workflowId
     let {
       page = 1,
       limit = 50,
@@ -74,7 +75,8 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
       fromDate,
       toDate,
       minAmount,
-      maxAmount
+      maxAmount,
+      workflowId // new query param for filtering by workflow id
     } = req.query;
 
     page = parseInt(page);
@@ -116,18 +118,28 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
       }
     }
 
+    // Filtering by workflow id: lookup the ApprovalWorkflow
+    if (workflowId) {
+      const workflow = await ApprovalWorkflow.findById(workflowId);
+      if (workflow) {
+        // Use the transactionId from the workflow to filter FundRequest by its _id
+        filter._id = workflow.transactionId;
+      } else {
+        // If no workflow found, set a filter that will not match any FundRequest
+        filter._id = null;
+      }
+    }
+
     // If search is provided, search in specific text fields (e.g., uniqueCode, description, and amount)
     if (search) {
       const numericSearch = parseFloat(search);
       if (!isNaN(numericSearch)) {
-        // If the search term is a number, also search in the amount field
         filter.$or = [
           { uniqueCode: { $regex: search, $options: 'i' } },
           { description: { $regex: search, $options: 'i' } },
-          { amount: numericSearch } // Exact match for numeric amounts
+          { amount: numericSearch }
         ];
       } else {
-        // If not a number, search only in text fields
         filter.$or = [
           { uniqueCode: { $regex: search, $options: 'i' } },
           { description: { $regex: search, $options: 'i' } }
@@ -140,7 +152,7 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
 
     // Retrieve fund requests with pagination, sorting, and populate the requestedBy field
     const fundRequests = await FundRequest.find(filter)
-      .populate('requestedBy', 'name phone email') // Populate requester details; adjust fields as needed
+      .populate('requestedBy', 'name phone email')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
@@ -157,90 +169,107 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
   }
 });
 
-
 router.get('/fund-requests/statistics', checkPermission('Report'), async (req, res) => {
-    try {
-      // 1. Aggregation by status (to get counts and total amounts per status)
-      const statsByStatus = await FundRequest.aggregate([
-        {
-          $group: {
-            _id: "$status",
-            count: { $sum: 1 },
-            totalAmount: { $sum: "$amount" }
-          }
-        }
-      ]);
-  
-      // 2. Aggregation by currency (to get counts and total amounts per currency)
-      const statsByCurrency = await FundRequest.aggregate([
-        {
-          $group: {
-            _id: "$currency",
-            count: { $sum: 1 },
-            totalAmount: { $sum: "$amount" }
-          }
-        }
-      ]);
-  
-      // 3. Overall statistics (total count and total amount)
-      const overallStats = await FundRequest.aggregate([
-        {
-          $group: {
-            _id: null,
-            totalCount: { $sum: 1 },
-            totalAmount: { $sum: "$amount" }
-          }
-        }
-      ]);
-  
-      // 4. Calculate extra counts based on status:
-      //    - open:    Pending fund requests.
-      //    - closed:  Approved and Rejected requests.
-      //    - canceled: Canceled requests.
-      //    - counted: Overall total (same as overallStats totalCount)
-      let openCount = 0,
-          closedCount = 0,
-          canceledCount = 0;
-  
-      statsByStatus.forEach(item => {
-        switch (item._id) {
-          case 'Pending':
-          case 'Rejected':
-            openCount = item.count;
-            break;
-          case 'Approved':
-            closedCount += item.count;
-            break;
-          case 'Canceled':
-            canceledCount = item.count;
-            break;
-          default:
-            break;
-        }
+  try {
+    const { workflowId } = req.query;
+    let filter = {};
+    
+    if (workflowId) {
+      // Convert the workflowId to an ObjectId to ensure a correct match.
+      const assignedWorkflowId = mongoose.Types.ObjectId(workflowId);
+      
+      // Find all workflows matching the assignedWorkflow id for FundRequests
+      const workflows = await ApprovalWorkflow.find({
+        assignedWorkflow: assignedWorkflowId,
+        transactionType: 'FundRequest'
       });
-  
-      // Use the overallStats result for "counted"
-      const overallCount = overallStats[0] ? overallStats[0].totalCount : 0;
-  
-      // Prepare the extra statusCounts object
-      const statusCounts = {
-        open: openCount,
-        closed: closedCount,
-        canceled: canceledCount,
-        counted: overallCount
-      };
-  
-      res.json({
-        overall: overallStats[0] || { totalCount: 0, totalAmount: 0 },
-        byStatus: statsByStatus,
-        byCurrency: statsByCurrency,
-        statusCounts
-      });
-    } catch (error) {
-      console.error("Error generating statistics:", error);
-      res.status(500).json({ message: "Server Error" });
+      
+      if (workflows && workflows.length > 0) {
+        const transactionIds = workflows.map(wf => wf.transactionId);
+        filter._id = { $in: transactionIds };
+      } else {
+        // No matching workflows found; force the filter to return no results
+        filter._id = null;
+      }
     }
-  });
+
+    // Aggregation by status with filter applied
+    const statsByStatus = await FundRequest.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+          totalAmount: { $sum: "$amount" }
+        }
+      }
+    ]);
+
+    // Aggregation by currency with filter applied
+    const statsByCurrency = await FundRequest.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: "$currency",
+          count: { $sum: 1 },
+          totalAmount: { $sum: "$amount" }
+        }
+      }
+    ]);
+
+    // Overall statistics with filter applied
+    const overallStats = await FundRequest.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          totalCount: { $sum: 1 },
+          totalAmount: { $sum: "$amount" }
+        }
+      }
+    ]);
+
+    // Calculate extra counts based on status:
+    let openCount = 0,
+        closedCount = 0,
+        canceledCount = 0;
+
+    statsByStatus.forEach(item => {
+      switch (item._id) {
+        case 'Pending':
+        case 'Rejected':
+          openCount += item.count;
+          break;
+        case 'Approved':
+          closedCount += item.count;
+          break;
+        case 'Canceled':
+          canceledCount = item.count;
+          break;
+        default:
+          break;
+      }
+    });
+
+    const overallCount = overallStats[0] ? overallStats[0].totalCount : 0;
+    const statusCounts = {
+      open: openCount,
+      closed: closedCount,
+      canceled: canceledCount,
+      counted: overallCount
+    };
+
+    res.json({
+      overall: overallStats[0] || { totalCount: 0, totalAmount: 0 },
+      byStatus: statsByStatus,
+      byCurrency: statsByCurrency,
+      statusCounts
+    });
+  } catch (error) {
+    console.error("Error generating statistics:", error);
+    res.status(500).json({ message: "Server Error" });
+  }
+});
   
 
   module.exports = router;
