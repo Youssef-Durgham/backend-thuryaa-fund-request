@@ -12,7 +12,7 @@ const fundRequestSchema = new mongoose.Schema({
   status: { type: String, enum: ['Pending', 'Approved', 'Rejected', 'Canceled'], default: 'Pending' },
   details: { type: mongoose.Schema.Types.Mixed },
   companyName: { type: String, required: true },
-  projectName: { type: String, required: true },
+  projectName: { type: String, required: false },
   documents: [{ type: String }],
   items: [
     {
