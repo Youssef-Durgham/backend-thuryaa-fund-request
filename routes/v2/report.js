@@ -120,12 +120,17 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
 
     // Filtering by workflow id: lookup the ApprovalWorkflow
     if (workflowId) {
-      const workflow = await ApprovalWorkflow.findById(workflowId);
-      if (workflow) {
-        // Use the transactionId from the workflow to filter FundRequest by its _id
-        filter._id = workflow.transactionId;
+      // Find all workflows that have the given assignedWorkflow id and are related to FundRequest transactions
+      const workflows = await ApprovalWorkflow.find({
+        assignedWorkflow: workflowId
+      });
+      
+      if (workflows && workflows.length > 0) {
+        // Extract all matching FundRequest transaction ids
+        const transactionIds = workflows.map(wf => wf.transactionId);
+        filter._id = { $in: transactionIds };
       } else {
-        // If no workflow found, set a filter that will not match any FundRequest
+        // If no matching workflows are found, set a filter that returns no documents
         filter._id = null;
       }
     }
