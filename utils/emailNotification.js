@@ -224,27 +224,27 @@ const generateEmailTemplate = ({ recipientName, subject, message, actionUrl, act
 const sendEmailNotification = async ({ to, subject, body, recipientName, actionUrl }) => {
   console.log(`[Email] Preparing to send email to: ${to}, Subject: "${subject}"`);
   
-  // try {
-  //   const mailOptions = {
-  //     from: '"الغدير" <info@spc-it.com.iq>', // Sender address
-  //     to,
-  //     subject,
-  //     text: body, // Plain text version
-  //     html: generateEmailTemplate({
-  //       recipientName,
-  //       subject,
-  //       message: body,
-  //       actionUrl,
-  //       actionText: 'عرض التفاصيل'
-  //     })
-  //   };
+  try {
+    const mailOptions = {
+      from: '"الغدير" <info@spc-it.com.iq>', // Sender address
+      to,
+      subject,
+      text: body, // Plain text version
+      html: generateEmailTemplate({
+        recipientName,
+        subject,
+        message: body,
+        actionUrl,
+        actionText: 'عرض التفاصيل'
+      })
+    };
 
-  //   await transporter.sendMail(mailOptions);
-  //   console.log(`[Email] Email sent successfully to ${to}`);
-  // } catch (error) {
-  //   console.error(`[Email] Failed to send email to ${to}:`, error.message);
-  //   throw new Error('Failed to send email notification.');
-  // }
+    await transporter.sendMail(mailOptions);
+    console.log(`[Email] Email sent successfully to ${to}`);
+  } catch (error) {
+    console.error(`[Email] Failed to send email to ${to}:`, error.message);
+    throw new Error('Failed to send email notification.');
+  }
 };
 
 module.exports = sendEmailNotification;
