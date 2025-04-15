@@ -388,4 +388,37 @@ router.post('/reset-password', async (req, res) => {
     }
   });
 
+  // Endpoint to reset an admin's password
+router.post('/AdminLogin/reset-password', async (req, res) => {
+  const { adminId, newPassword } = req.body;
+
+  // Ensure required fields are provided
+  if (!adminId || !newPassword) {
+    return res.status(400).json({ message: 'Required fields missing' });
+  }
+
+  try {
+    // Find the admin by provided adminId
+    const admin = await Admin.findById(adminId);
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    // Update password (the pre-save hook will hash it)
+    admin.password = newPassword;
+
+    // Reset the forcePasswordChange flag
+    admin.forcePasswordChange = false;
+    
+    // Save the updated admin document
+    await admin.save();
+
+    res.json({ message: 'Password reset successful' });
+  } catch (error) {
+    console.error("Error in /AdminLogin/reset-password:", error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+
 module.exports = router;
