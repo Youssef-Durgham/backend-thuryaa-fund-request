@@ -11,7 +11,7 @@ const jwt = require('jsonwebtoken');
 const Entity = require('../../model/v2/Entity');
 const FundRequestCounter = require('../../model/v2/FundRequestCounter');
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+const BASE_URL = process.env.BASE_URL || 'https://rida-funds.spc-it.com.iq';
 
 
 const router = express.Router();
@@ -145,8 +145,35 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
       status: 'Pending',
       assignedWorkflow: req.params.workflowId
     });
-
+    
     await workflow.save({ session });
+    
+    // ✅ populate approvers before sending emails
+    await workflow.populate('steps.approvers');
+    
+    
+// ✅ Send email to the first step approvers
+const firstStep = workflow.steps.find(step => step.level === 1);
+if (firstStep) {
+  for (const approver of firstStep.approvers) {
+    try {
+      console.log(`[Create] Sending email to first step approver: ${approver.email}`);
+      await sendEmailNotification({
+        to: approver.email,
+        subject: `إجراء مطلوب: طلب تمويل جديد بانتظار موافقتك`,
+        body: `يوجد طلب تمويل جديد بحاجة إلى موافقتك في الخطوة الأولى.\n\nتفاصيل الطلب:\n- الكود: ${uniqueCode}\n- المبلغ: ${amount} ${currency}\n\nيمكنك مراجعة الطلب من خلال الرابط التالي:\n${BASE_URL}/fund-requests/${fundRequest._id}`,
+        recipientName: approver.name,
+        actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
+        actionText: 'عرض الطلب'
+      });
+      console.log(`[Create] Email sent to approver: ${approver.email}`);
+    } catch (emailErr) {
+      console.error(`[Create] Failed to send email to approver ${approver._id}:`, emailErr.message);
+    }
+  }
+}
+
+    
 
     await logActivity({
       action: 'Create_FundRequest',

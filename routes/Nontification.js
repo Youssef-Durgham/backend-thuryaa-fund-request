@@ -74,7 +74,7 @@ function formatAdminReminderMessage(orders) {
     message += `│ ${emoji.phone} رقم الهاتف: ${order.customer.phone}\n`;
     message += `│ ${emoji.items} إجمالي المواد: ${order.items.length}\n`;
     message += `│ ${emoji.date} تاريخ التسليم: ${new Date(order.remainingDeliveryDate).toLocaleDateString('ar-EG')}\n`;
-    message += `│ ${emoji.link} رابط الطلب: https://main.d2s98oc5q6hq8n.amplifyapp.com/OrderDetailsMm/${order._id}\n`;
+    message += `│ ${emoji.link} رابط الطلب: https://rida-funds.spc-it.com.iq/OrderDetailsMm/${order._id}\n`;
     message += `└─────────────────────\n\n`;
   });
   
@@ -107,7 +107,7 @@ function formatAdminReminderMessageHTML(orders) {
         <p>📱 <strong>رقم الهاتف:</strong> ${order.customer.phone}</p>
         <p>🛍️ <strong>إجمالي المواد:</strong> ${order.items.length}</p>
         <p>📅 <strong>تاريخ التسليم:</strong> ${new Date(order.remainingDeliveryDate).toLocaleDateString('ar-EG')}</p>
-        <p>🔗 <strong>رابط الطلب:</strong> <a href="https://main.d2s98oc5q6hq8n.amplifyapp.com/OrderDetailsMm/${order._id}">اضغط هنا</a></p>
+        <p>🔗 <strong>رابط الطلب:</strong> <a href="https://rida-funds.spc-it.com.iq/OrderDetailsMm/${order._id}">اضغط هنا</a></p>
       </div>
     `;
   });
