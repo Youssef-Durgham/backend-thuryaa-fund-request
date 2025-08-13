@@ -231,13 +231,36 @@ router.post('/assign-role', checkPermission('assign_roles'), async (req, res) =>
 
 // Remove role group from admin
 router.post('/remove-role', checkPermission('remove_roles'), async (req, res) => {
-  const { adminId, roleId } = req.body;
+  const { adminId, roleId, entityId } = req.body; // Added entityId
+  
   try {
     const admin = await Admin.findById(adminId);
     if (!admin) {
       return res.status(404).json({ message: 'Admin not found' });
     }
-    admin.roles = admin.roles.filter(role => role.toString() !== roleId);
+
+    // Find the entity role entry
+    const entityRoleEntry = admin.entityRoles.find(
+      entry => entry.entity.toString() === entityId
+    );
+
+    if (!entityRoleEntry) {
+      return res.status(404).json({ message: 'No roles found for this entity' });
+    }
+
+    // Remove the role from the entity's roles array
+    entityRoleEntry.roles = entityRoleEntry.roles.filter(
+      role => role.toString() !== roleId
+    );
+
+    // If no roles left for this entity, you might want to remove the entire entry
+    // Uncomment the following if you want this behavior:
+    // if (entityRoleEntry.roles.length === 0) {
+    //   admin.entityRoles = admin.entityRoles.filter(
+    //     entry => entry.entity.toString() !== entityId
+    //   );
+    // }
+
     await admin.save();
 
     // Log the role removal
@@ -245,14 +268,16 @@ router.post('/remove-role', checkPermission('remove_roles'), async (req, res) =>
       action: 'remove_role',
       performedBy: req.adminId,
       targetUser: admin._id,
+      targetItem: roleId,
       userType: 'System',
-      itemType: 'Admin-Activitys'
+      itemType: 'Admin-Activitys',
+      entity: entityId
     });
     await activityLog.save();
 
     res.status(200).json({ message: 'Role removed successfully' });
   } catch (error) {
-    console.log(error)
+    console.log(error);
     res.status(500).json({ message: 'Server error', error });
   }
 });
