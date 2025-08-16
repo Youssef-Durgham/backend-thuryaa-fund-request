@@ -448,8 +448,8 @@ router.post('/fund-requests/:workflowId/reject', checkPermission('Reject_FundReq
   session.startTransaction();
   try {
     const { workflowId } = req.params;
-    const { comments } = req.body; // Extract comments from the request body
-    const adminId = req.adminId; // Ensure adminId is available
+    const { comments } = req.body;
+    const adminId = req.adminId;
 
     console.log(`[Reject] Admin ID: ${adminId} is attempting to reject workflow ID: ${workflowId}`);
 
@@ -493,7 +493,7 @@ router.post('/fund-requests/:workflowId/reject', checkPermission('Reject_FundReq
     currentStep.status = 'Rejected';
     currentStep.approvedBy = adminId;
     currentStep.approvedAt = new Date();
-    currentStep.comments = comments; // Save the comments
+    currentStep.comments = comments;
 
     // Fetch FundRequest Details
     const fundRequest = await FundRequest.findById(workflow.transactionId).session(session);
@@ -509,71 +509,40 @@ router.post('/fund-requests/:workflowId/reject', checkPermission('Reject_FundReq
       throw new Error('Requester not found.');
     }
 
-    // Send email to the requester about the rejection of the current step
-    console.log(`[Reject] Sending email to requester: ${requester.email}`);
+    // IMPORTANT CHANGE: Always mark workflow as Rejected (not Pending)
+    workflow.status = 'Rejected';
+    console.log(`[Reject] Workflow ID: ${workflowId} is fully rejected.`);
+
+    // Update fund request status to Rejected
+    fundRequest.status = 'Rejected';
+    await fundRequest.save({ session });
+    console.log(`[Reject] FundRequest ID: ${fundRequest._id} status updated to Rejected.`);
+
+    // Send email to the requester about the rejection
+    console.log(`[Reject] Sending rejection email to requester: ${requester.email}`);
     await sendEmailNotification({
       to: requester.email,
-      subject: `تمت رفض خطوة من طلب التمويل`,
-      body: `تمت رفض الخطوة ${currentStep.level} من طلب التمويل الخاص بك بواسطة ${admin.name}. التعليقات: "${comments}".\n\nيمكنك مراجعة طلب التمويل من خلال الرابط التالي:\n${BASE_URL}/fund-requests/${fundRequest._id}`,
+      subject: 'تم رفض طلب التمويل',
+      body: `تم رفض طلب التمويل الخاص بك في المستوى ${currentStep.level}. التعليقات: "${comments}".\n\nيمكنك مراجعة طلب التمويل من خلال الرابط التالي:\n${BASE_URL}/fund-requests/${fundRequest._id}`,
       recipientName: requester.name,
       actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
       actionText: 'عرض التفاصيل'
     });
-    console.log(`[Reject] Email sent to requester: ${requester.email}`);
+    console.log(`[Reject] Rejection email sent to requester: ${requester.email}`);
 
-    // Send email to all approvers of the current step about the rejection
+    // Optionally notify other approvers about the rejection
     for (const approver of currentStep.approvers) {
-      console.log(`[Reject] Sending rejection email to approver: ${approver.email}`);
-      await sendEmailNotification({
-        to: approver.email,
-        subject: `تمت رفض الخطوة ${currentStep.level}`,
-        body: `تمت رفض الخطوة ${currentStep.level} من طلب التمويل بواسطة ${admin.name}. التعليقات: "${comments}".\n\nيمكنك مراجعة طلب التمويل من خلال الرابط التالي:\n${BASE_URL}/fund-requests/${fundRequest._id}`,
-        recipientName: approver.name,
-        actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
-        actionText: 'عرض التفاصيل'
-      });
-      console.log(`[Reject] Email sent to approver: ${approver.email}`);
-    }
-
-    // Move to the previous step
-    const previousStep = workflow.steps.find(step => step.level === workflow.currentLevel - 1);
-    if (previousStep) {
-      workflow.currentLevel -= 1;
-      console.log(`[Reject] Moving back to previous step level: ${workflow.currentLevel} for workflow ID: ${workflowId}`);
-
-      // Notify all approvers of the previous step that action is required
-      for (const approver of previousStep.approvers) {
-        console.log(`[Reject] Sending email to previous step approver: ${approver.email}`);
+      if (approver._id.toString() !== adminId) {
+        console.log(`[Reject] Notifying other approver: ${approver.email}`);
         await sendEmailNotification({
           to: approver.email,
-          subject: 'إجراء مطلوب: طلب التمويل مرفوض',
-          body: `تم رفض طلب التمويل عند المستوى ${workflow.currentLevel + 1}. لقد عاد إلى مستواك لاتخاذ الإجراءات اللازمة. يرجى تسجيل الدخول إلى النظام لمراجعة واتخاذ الخطوات الضرورية.\n\nيمكنك مراجعة طلب التمويل من خلال الرابط التالي:\n${BASE_URL}/fund-requests/${fundRequest._id}`,
+          subject: 'تم رفض طلب التمويل',
+          body: `تم رفض طلب التمويل من قبل ${admin.name}. التعليقات: "${comments}".\n\nيمكنك مراجعة طلب التمويل من خلال الرابط التالي:\n${BASE_URL}/fund-requests/${fundRequest._id}`,
           recipientName: approver.name,
           actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
           actionText: 'عرض التفاصيل'
         });
-        console.log(`[Reject] Email sent to previous step approver: ${approver.email}`);
       }
-    } else {
-      // Mark the entire workflow as rejected if there's no previous step
-      workflow.status = 'Rejected';
-      console.log(`[Reject] Workflow ID: ${workflowId} is fully rejected.`);
-
-      fundRequest.status = 'Rejected';
-      await fundRequest.save({ session });
-      console.log(`[Reject] FundRequest ID: ${fundRequest._id} status updated to Rejected.`);
-
-      // Send email to the requester about the full rejection
-      console.log(`[Reject] Sending full rejection email to requester: ${requester.email}`);
-      await sendEmailNotification({
-        to: requester.email,
-        subject: 'تم رفض طلب التمويل',
-        body: `تم رفض طلب التمويل الخاص بك. التعليقات: "${comments}".\n\nيمكنك مراجعة طلب التمويل من خلال الرابط التالي:\n${BASE_URL}/fund-requests/${fundRequest._id}`,
-        recipientName: requester.name,
-        actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
-        actionText: 'عرض التفاصيل'
-      });
-      console.log(`[Reject] Full rejection email sent to requester: ${requester.email}`);
     }
 
     await workflow.save({ session });
@@ -593,7 +562,10 @@ router.post('/fund-requests/:workflowId/reject', checkPermission('Reject_FundReq
     session.endSession();
     console.log(`[Reject] Transaction committed for workflow ID: ${workflowId}`);
 
-    res.status(200).json({ message: 'تم رفض طلب التمويل بنجاح وتم إرجاعه إلى الخطوة السابقة.', workflow });
+    res.status(200).json({ 
+      message: 'تم رفض طلب التمويل بنجاح.', 
+      workflow 
+    });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
