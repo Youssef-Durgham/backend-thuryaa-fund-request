@@ -119,9 +119,37 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
     }
 
     // Filtering by workflow id: lookup the ApprovalWorkflow
-    let workflowFilter = {};
     if (workflowId) {
-      workflowFilter.assignedWorkflow = workflowId;
+      // Find all workflows that have the given assignedWorkflow id
+      const workflows = await ApprovalWorkflow.find({
+        assignedWorkflow: workflowId
+      });
+      
+      if (workflows && workflows.length > 0) {
+        // Extract all matching FundRequest transaction ids
+        const transactionIds = workflows.map(wf => wf.transactionId);
+        filter._id = { $in: transactionIds };
+      } else {
+        // If no matching workflows are found, set a filter that returns no documents
+        filter._id = null;
+      }
+    }
+
+    // If search is provided, search in specific text fields
+    if (search) {
+      const numericSearch = parseFloat(search);
+      if (!isNaN(numericSearch)) {
+        filter.$or = [
+          { uniqueCode: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } },
+          { amount: numericSearch }
+        ];
+      } else {
+        filter.$or = [
+          { uniqueCode: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } }
+        ];
+      }
     }
 
     // Get total count for pagination
@@ -140,8 +168,7 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
       fundRequests.map(async (fundRequest) => {
         // Find the workflow for this fund request
         const workflow = await ApprovalWorkflow.findOne({ 
-          transactionId: fundRequest._id,
-          ...workflowFilter 
+          transactionId: fundRequest._id
         })
         .populate('steps.approvers', 'name email')
         .lean();
@@ -170,16 +197,11 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
       })
     );
 
-    // If workflowId was provided, filter out requests that don't have matching workflows
-    const filteredRequests = workflowId 
-      ? fundRequestsWithApprovers.filter(req => req.workflowStatus !== null)
-      : fundRequestsWithApprovers;
-
     res.json({
-      total: workflowId ? filteredRequests.length : total,
+      total,
       page,
-      pages: Math.ceil((workflowId ? filteredRequests.length : total) / limit),
-      fundRequests: filteredRequests
+      pages: Math.ceil(total / limit),
+      fundRequests: fundRequestsWithApprovers
     });
   } catch (error) {
     console.error("Error fetching fund requests:", error);
