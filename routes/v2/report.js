@@ -78,7 +78,7 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
       maxAmount,
       workflowId,
       requestedBy, // Filter by user who made the request
-      pendingApproverId // NEW: Filter by pending approver
+      pendingApproverId // Filter by pending approver
     } = req.query;
 
     page = parseInt(page);
@@ -142,42 +142,56 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
       }
     }
 
-    // NEW: Filter by pending approver
+    // Filter by pending approver - FIXED LOGIC
     if (pendingApproverId) {
-      // Find all workflows where the specified user is a pending approver at the current level
-      const workflowsWithPendingApprover = await ApprovalWorkflow.find({
-        status: 'Pending',
-        $expr: {
-          $anyElementTrue: {
-            $map: {
-              input: "$steps",
-              as: "step",
-              in: {
-                $and: [
-                  { $eq: ["$step.level", "$currentLevel"] },
-                  { $eq: ["$step.status", "Pending"] },
-                  { $in: [mongoose.Types.ObjectId(pendingApproverId), "$step.approvers"] }
-                ]
-              }
-            }
+      console.log('Filtering by pending approver:', pendingApproverId);
+      
+      // Find all pending workflows
+      const pendingWorkflows = await ApprovalWorkflow.find({
+        status: 'Pending'
+      }).populate('steps.approvers');
+
+      // Filter to only those where the user is a pending approver at the current level
+      const relevantWorkflows = [];
+      
+      for (const workflow of pendingWorkflows) {
+        // Find the current step
+        const currentStep = workflow.steps.find(step => step.level === workflow.currentLevel);
+        
+        if (currentStep && currentStep.status === 'Pending') {
+          // Check if the user is in the current step's approvers
+          const isApprover = currentStep.approvers.some(approver => {
+            const approverId = approver._id ? approver._id.toString() : approver.toString();
+            return approverId === pendingApproverId;
+          });
+          
+          if (isApprover) {
+            relevantWorkflows.push(workflow);
           }
         }
-      });
+      }
 
-      if (workflowsWithPendingApprover && workflowsWithPendingApprover.length > 0) {
-        const transactionIds = workflowsWithPendingApprover.map(wf => wf.transactionId);
+      console.log(`Found ${relevantWorkflows.length} workflows pending approval from user ${pendingApproverId}`);
+
+      if (relevantWorkflows.length > 0) {
+        const pendingTransactionIds = relevantWorkflows.map(wf => wf.transactionId);
         
         // If we already have a filter on _id from workflowId, we need to intersect
         if (filter._id && filter._id.$in) {
           const existingIds = filter._id.$in.map(id => id.toString());
-          const newIds = transactionIds.map(id => id.toString());
+          const newIds = pendingTransactionIds.map(id => id.toString());
           const intersectedIds = existingIds.filter(id => newIds.includes(id));
-          filter._id = { $in: intersectedIds.map(id => mongoose.Types.ObjectId(id)) };
+          
+          if (intersectedIds.length > 0) {
+            filter._id = { $in: intersectedIds.map(id => mongoose.Types.ObjectId(id)) };
+          } else {
+            filter._id = null; // No intersection found
+          }
         } else {
-          filter._id = { $in: transactionIds };
+          filter._id = { $in: pendingTransactionIds };
         }
       } else {
-        // No matching workflows found
+        // No matching workflows found - return empty results
         filter._id = null;
       }
     }
@@ -252,13 +266,13 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching fund requests:", error);
-    res.status(500).json({ message: "Server Error" });
+    res.status(500).json({ message: "Server Error", error: error.message });
   }
 });
 
 router.get('/fund-requests/statistics', checkPermission('Report'), async (req, res) => {
   try {
-    const { workflowId, requestedBy, pendingApproverId } = req.query; // Added pendingApproverId
+    const { workflowId, requestedBy, pendingApproverId } = req.query;
     let filter = {};
     
     // Filter by requestedBy for statistics
@@ -286,31 +300,40 @@ router.get('/fund-requests/statistics', checkPermission('Report'), async (req, r
       }
     }
     
-    // Handle pending approver filtering
+    // Handle pending approver filtering - FIXED LOGIC
     let pendingApproverTransactionIds = null;
     if (pendingApproverId) {
-      // Find all workflows where the specified user is a pending approver at the current level
-      const workflowsWithPendingApprover = await ApprovalWorkflow.find({
-        status: 'Pending',
-        $expr: {
-          $anyElementTrue: {
-            $map: {
-              input: "$steps",
-              as: "step",
-              in: {
-                $and: [
-                  { $eq: ["$step.level", "$currentLevel"] },
-                  { $eq: ["$step.status", "Pending"] },
-                  { $in: [mongoose.Types.ObjectId(pendingApproverId), "$step.approvers"] }
-                ]
-              }
-            }
+      console.log('Statistics: Filtering by pending approver:', pendingApproverId);
+      
+      // Find all pending workflows
+      const pendingWorkflows = await ApprovalWorkflow.find({
+        status: 'Pending'
+      }).populate('steps.approvers');
+
+      // Filter to only those where the user is a pending approver at the current level
+      const relevantWorkflows = [];
+      
+      for (const workflow of pendingWorkflows) {
+        // Find the current step
+        const currentStep = workflow.steps.find(step => step.level === workflow.currentLevel);
+        
+        if (currentStep && currentStep.status === 'Pending') {
+          // Check if the user is in the current step's approvers
+          const isApprover = currentStep.approvers.some(approver => {
+            const approverId = approver._id ? approver._id.toString() : approver.toString();
+            return approverId === pendingApproverId;
+          });
+          
+          if (isApprover) {
+            relevantWorkflows.push(workflow);
           }
         }
-      });
+      }
 
-      if (workflowsWithPendingApprover && workflowsWithPendingApprover.length > 0) {
-        pendingApproverTransactionIds = workflowsWithPendingApprover.map(wf => wf.transactionId);
+      console.log(`Statistics: Found ${relevantWorkflows.length} workflows pending approval from user ${pendingApproverId}`);
+
+      if (relevantWorkflows.length > 0) {
+        pendingApproverTransactionIds = relevantWorkflows.map(wf => wf.transactionId);
       } else {
         // No matching workflows found
         filter._id = null;
@@ -324,12 +347,38 @@ router.get('/fund-requests/statistics', checkPermission('Report'), async (req, r
         const workflowIds = workflowTransactionIds.map(id => id.toString());
         const pendingIds = pendingApproverTransactionIds.map(id => id.toString());
         const intersectedIds = workflowIds.filter(id => pendingIds.includes(id));
-        filter._id = { $in: intersectedIds.map(id => mongoose.Types.ObjectId(id)) };
+        
+        if (intersectedIds.length > 0) {
+          filter._id = { $in: intersectedIds.map(id => mongoose.Types.ObjectId(id)) };
+        } else {
+          filter._id = null; // No intersection
+        }
       } else if (workflowTransactionIds) {
         filter._id = { $in: workflowTransactionIds };
       } else if (pendingApproverTransactionIds) {
         filter._id = { $in: pendingApproverTransactionIds };
       }
+    }
+
+    // If filter._id is null, return empty statistics
+    if (filter._id === null) {
+      return res.json({
+        overall: {
+          totalCount: 0,
+          totalAmount: 0
+        },
+        statsByStatus: [],
+        statsByCurrency: [],
+        statusCounts: {
+          pending: 0,
+          approved: 0,
+          rejected: 0,
+          canceled: 0,
+          open: 0,
+          closed: 0
+        },
+        totalRequests: 0
+      });
     }
 
     // Aggregation by status with filter applied
@@ -423,7 +472,7 @@ router.get('/fund-requests/statistics', checkPermission('Report'), async (req, r
     res.json(response);
   } catch (error) {
     console.error("Error fetching fund request statistics:", error);
-    res.status(500).json({ message: "Server Error" });
+    res.status(500).json({ message: "Server Error", error: error.message });
   }
 });
   
