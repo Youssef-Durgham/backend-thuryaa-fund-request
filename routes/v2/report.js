@@ -64,7 +64,7 @@ const checkPermission = (permission) => {
 
 router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
   try {
-    // Read query parameters including workflowId and requestedBy
+    // Read query parameters including workflowId, requestedBy and pendingApproverId
     let {
       page = 1,
       limit = 50,
@@ -77,7 +77,8 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
       minAmount,
       maxAmount,
       workflowId,
-      requestedBy // NEW: Added requestedBy parameter for filtering by user
+      requestedBy, // Filter by user who made the request
+      pendingApproverId // NEW: Filter by pending approver
     } = req.query;
 
     page = parseInt(page);
@@ -86,7 +87,7 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
     // Build the filter object
     const filter = {};
 
-    // NEW: Filter by requestedBy (user who made the request)
+    // Filter by requestedBy (user who made the request)
     if (requestedBy) {
       filter.requestedBy = requestedBy;
     }
@@ -137,6 +138,46 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
         filter._id = { $in: transactionIds };
       } else {
         // If no matching workflows are found, set a filter that returns no documents
+        filter._id = null;
+      }
+    }
+
+    // NEW: Filter by pending approver
+    if (pendingApproverId) {
+      // Find all workflows where the specified user is a pending approver at the current level
+      const workflowsWithPendingApprover = await ApprovalWorkflow.find({
+        status: 'Pending',
+        $expr: {
+          $anyElementTrue: {
+            $map: {
+              input: "$steps",
+              as: "step",
+              in: {
+                $and: [
+                  { $eq: ["$step.level", "$currentLevel"] },
+                  { $eq: ["$step.status", "Pending"] },
+                  { $in: [mongoose.Types.ObjectId(pendingApproverId), "$step.approvers"] }
+                ]
+              }
+            }
+          }
+        }
+      });
+
+      if (workflowsWithPendingApprover && workflowsWithPendingApprover.length > 0) {
+        const transactionIds = workflowsWithPendingApprover.map(wf => wf.transactionId);
+        
+        // If we already have a filter on _id from workflowId, we need to intersect
+        if (filter._id && filter._id.$in) {
+          const existingIds = filter._id.$in.map(id => id.toString());
+          const newIds = transactionIds.map(id => id.toString());
+          const intersectedIds = existingIds.filter(id => newIds.includes(id));
+          filter._id = { $in: intersectedIds.map(id => mongoose.Types.ObjectId(id)) };
+        } else {
+          filter._id = { $in: transactionIds };
+        }
+      } else {
+        // No matching workflows found
         filter._id = null;
       }
     }
@@ -217,14 +258,16 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
 
 router.get('/fund-requests/statistics', checkPermission('Report'), async (req, res) => {
   try {
-    const { workflowId, requestedBy } = req.query; // NEW: Added requestedBy
+    const { workflowId, requestedBy, pendingApproverId } = req.query; // Added pendingApproverId
     let filter = {};
     
-    // NEW: Filter by requestedBy for statistics
+    // Filter by requestedBy for statistics
     if (requestedBy) {
       filter.requestedBy = requestedBy;
     }
     
+    // Handle workflow filtering
+    let workflowTransactionIds = null;
     if (workflowId) {
       // Convert the workflowId to an ObjectId to ensure a correct match
       const assignedWorkflowId = mongoose.Types.ObjectId(workflowId);
@@ -236,11 +279,56 @@ router.get('/fund-requests/statistics', checkPermission('Report'), async (req, r
       });
       
       if (workflows && workflows.length > 0) {
-        const transactionIds = workflows.map(wf => wf.transactionId);
-        filter._id = { $in: transactionIds };
+        workflowTransactionIds = workflows.map(wf => wf.transactionId);
       } else {
         // No matching workflows found; force the filter to return no results
         filter._id = null;
+      }
+    }
+    
+    // Handle pending approver filtering
+    let pendingApproverTransactionIds = null;
+    if (pendingApproverId) {
+      // Find all workflows where the specified user is a pending approver at the current level
+      const workflowsWithPendingApprover = await ApprovalWorkflow.find({
+        status: 'Pending',
+        $expr: {
+          $anyElementTrue: {
+            $map: {
+              input: "$steps",
+              as: "step",
+              in: {
+                $and: [
+                  { $eq: ["$step.level", "$currentLevel"] },
+                  { $eq: ["$step.status", "Pending"] },
+                  { $in: [mongoose.Types.ObjectId(pendingApproverId), "$step.approvers"] }
+                ]
+              }
+            }
+          }
+        }
+      });
+
+      if (workflowsWithPendingApprover && workflowsWithPendingApprover.length > 0) {
+        pendingApproverTransactionIds = workflowsWithPendingApprover.map(wf => wf.transactionId);
+      } else {
+        // No matching workflows found
+        filter._id = null;
+      }
+    }
+    
+    // Combine workflow and pending approver filters if both exist
+    if (workflowTransactionIds || pendingApproverTransactionIds) {
+      if (workflowTransactionIds && pendingApproverTransactionIds) {
+        // Intersect both sets of IDs
+        const workflowIds = workflowTransactionIds.map(id => id.toString());
+        const pendingIds = pendingApproverTransactionIds.map(id => id.toString());
+        const intersectedIds = workflowIds.filter(id => pendingIds.includes(id));
+        filter._id = { $in: intersectedIds.map(id => mongoose.Types.ObjectId(id)) };
+      } else if (workflowTransactionIds) {
+        filter._id = { $in: workflowTransactionIds };
+      } else if (pendingApproverTransactionIds) {
+        filter._id = { $in: pendingApproverTransactionIds };
       }
     }
 
@@ -335,108 +423,6 @@ router.get('/fund-requests/statistics', checkPermission('Report'), async (req, r
     res.json(response);
   } catch (error) {
     console.error("Error fetching fund request statistics:", error);
-    res.status(500).json({ message: "Server Error" });
-  }
-});
-
-router.get('/fund-requests/statistics', checkPermission('Report'), async (req, res) => {
-  try {
-    const { workflowId } = req.query;
-    let filter = {};
-    
-    if (workflowId) {
-      // Convert the workflowId to an ObjectId to ensure a correct match.
-      const assignedWorkflowId = mongoose.Types.ObjectId(workflowId);
-      
-      // Find all workflows matching the assignedWorkflow id for FundRequests
-      const workflows = await ApprovalWorkflow.find({
-        assignedWorkflow: assignedWorkflowId,
-        transactionType: 'FundRequest'
-      });
-      
-      if (workflows && workflows.length > 0) {
-        const transactionIds = workflows.map(wf => wf.transactionId);
-        filter._id = { $in: transactionIds };
-      } else {
-        // No matching workflows found; force the filter to return no results
-        filter._id = null;
-      }
-    }
-
-    // Aggregation by status with filter applied
-    const statsByStatus = await FundRequest.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: "$status",
-          count: { $sum: 1 },
-          totalAmount: { $sum: "$amount" }
-        }
-      }
-    ]);
-
-    // Aggregation by currency with filter applied
-    const statsByCurrency = await FundRequest.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: "$currency",
-          count: { $sum: 1 },
-          totalAmount: { $sum: "$amount" }
-        }
-      }
-    ]);
-
-    // Overall statistics with filter applied
-    const overallStats = await FundRequest.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: null,
-          totalCount: { $sum: 1 },
-          totalAmount: { $sum: "$amount" }
-        }
-      }
-    ]);
-
-    // Calculate extra counts based on status:
-    let openCount = 0,
-        closedCount = 0,
-        canceledCount = 0;
-
-    statsByStatus.forEach(item => {
-      switch (item._id) {
-        case 'Pending':
-        case 'Rejected':
-          openCount += item.count;
-          break;
-        case 'Approved':
-          closedCount += item.count;
-          break;
-        case 'Canceled':
-          canceledCount = item.count;
-          break;
-        default:
-          break;
-      }
-    });
-
-    const overallCount = overallStats[0] ? overallStats[0].totalCount : 0;
-    const statusCounts = {
-      open: openCount,
-      closed: closedCount,
-      canceled: canceledCount,
-      counted: overallCount
-    };
-
-    res.json({
-      overall: overallStats[0] || { totalCount: 0, totalAmount: 0 },
-      byStatus: statsByStatus,
-      byCurrency: statsByCurrency,
-      statusCounts
-    });
-  } catch (error) {
-    console.error("Error generating statistics:", error);
     res.status(500).json({ message: "Server Error" });
   }
 });
