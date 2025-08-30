@@ -56,7 +56,7 @@ const checkPermission = (permission) => {
 
 
 // Get Admin User List
-router.get('/admin-users-list', checkPermission('List_Admin_Users'), async (req, res) => {
+router.get('/admin-users-list', async (req, res) => {
   const { page = 1 } = req.query;
 
   const limit = 50;
