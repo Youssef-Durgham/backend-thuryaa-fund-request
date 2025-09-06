@@ -302,7 +302,7 @@ router.post('/fund-requests/:workflowId/approve', checkPermission('Approve_FundR
   session.startTransaction();
   try {
     const { workflowId } = req.params;
-    const { comments } = req.body; // Extract comments from the request body
+    const { comments, attachments = [] } = req.body; // Extract comments and attachments from the request body
     const adminId = req.adminId; // Ensure adminId is available
 
     console.log(`[Approve] Admin ID: ${adminId} is attempting to approve workflow ID: ${workflowId}`);
@@ -348,6 +348,7 @@ router.post('/fund-requests/:workflowId/approve', checkPermission('Approve_FundR
     currentStep.approvedBy = adminId;
     currentStep.approvedAt = new Date();
     currentStep.comments = comments; // Save the comments
+    currentStep.attachments = attachments; // Save the attachments
 
     // Fetch FundRequest Details
     const fundRequest = await FundRequest.findById(workflow.transactionId).session(session);
@@ -448,7 +449,7 @@ router.post('/fund-requests/:workflowId/reject', checkPermission('Reject_FundReq
   session.startTransaction();
   try {
     const { workflowId } = req.params;
-    const { comments } = req.body;
+    const { comments, attachments = [] } = req.body;
     const adminId = req.adminId;
 
     console.log(`[Reject] Admin ID: ${adminId} is attempting to reject workflow ID: ${workflowId}`);
@@ -494,6 +495,7 @@ router.post('/fund-requests/:workflowId/reject', checkPermission('Reject_FundReq
     currentStep.approvedBy = adminId;
     currentStep.approvedAt = new Date();
     currentStep.comments = comments;
+    currentStep.attachments = attachments; // Save the attachments
 
     // Fetch FundRequest Details
     const fundRequest = await FundRequest.findById(workflow.transactionId).session(session);

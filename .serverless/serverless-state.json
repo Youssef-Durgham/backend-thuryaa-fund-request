@@ -196,11 +196,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-<<<<<<< HEAD
-                "S3Key": "serverless/po/dev/1755955674346-2025-08-23T13:27:54.346Z/po.zip"
-=======
-                "S3Key": "serverless/po/dev/1756546258223-2025-08-30T09:30:58.223Z/po.zip"
->>>>>>> 350445e (hgj)
+                "S3Key": "serverless/po/dev/1757146211633-2025-09-06T08:10:11.633Z/po.zip"
               },
               "Handler": "index.handler",
               "Runtime": "nodejs18.x",
@@ -319,11 +315,7 @@
               "MainLambdaPermissionApiGateway"
             ]
           },
-<<<<<<< HEAD
-          "ApiGatewayDeployment1755955670786": {
-=======
-          "ApiGatewayDeployment1756546253873": {
->>>>>>> 350445e (hgj)
+          "ApiGatewayDeployment1757146208230": {
             "Type": "AWS::ApiGateway::Deployment",
             "Properties": {
               "RestApiId": {
@@ -758,11 +750,7 @@
     "artifact": "/Volumes/programming_folders/redia/projects/wf po/backend/.serverless/po.zip"
   },
   "package": {
-<<<<<<< HEAD
-    "artifactDirectoryName": "serverless/po/dev/1755955674346-2025-08-23T13:27:54.346Z",
-=======
-    "artifactDirectoryName": "serverless/po/dev/1756546258223-2025-08-30T09:30:58.223Z",
->>>>>>> 350445e (hgj)
+    "artifactDirectoryName": "serverless/po/dev/1757146211633-2025-09-06T08:10:11.633Z",
     "artifact": "po.zip"
   }
 }

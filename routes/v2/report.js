@@ -248,7 +248,7 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
             currentPendingLevel = currentStep.level;
           }
         }
-
+ 
         return {
           ...fundRequest,
           currentPendingApprovers,
@@ -272,38 +272,99 @@ router.get('/fund-requests', checkPermission('Report'), async (req, res) => {
 
 router.get('/fund-requests/statistics', checkPermission('Report'), async (req, res) => {
   try {
-    const { workflowId, requestedBy, pendingApproverId } = req.query;
-    let filter = {};
-    
+    // Read all query parameters like the main endpoint
+    let {
+      search,
+      status,
+      currency,
+      requestFundType,
+      fromDate,
+      toDate,
+      minAmount,
+      maxAmount,
+      workflowId,
+      requestedBy,
+      pendingApproverId
+    } = req.query;
+
+    // Build the filter object
+    const filter = {};
+
     // Filter by requestedBy for statistics
     if (requestedBy) {
       filter.requestedBy = requestedBy;
     }
+
+    // Filtering by exact fields
+    if (status) {
+      filter.status = status;
+    }
+    if (currency) {
+      filter.currency = currency;
+    }
+    if (requestFundType) {
+      filter.requestFundType = requestFundType;
+    }
+
+    // Filtering by date range on the requestDate field
+    if (fromDate || toDate) {
+      filter.requestDate = {};
+      if (fromDate) {
+        filter.requestDate.$gte = new Date(fromDate);
+      }
+      if (toDate) {
+        filter.requestDate.$lte = new Date(toDate);
+      }
+    }
+
+    // Filtering by amount range
+    if (minAmount || maxAmount) {
+      filter.amount = {};
+      if (minAmount) {
+        filter.amount.$gte = parseFloat(minAmount);
+      }
+      if (maxAmount) {
+        filter.amount.$lte = parseFloat(maxAmount);
+      }
+    }
+
+    // If search is provided, search in specific text fields
+    if (search) {
+      const numericSearch = parseFloat(search);
+      if (!isNaN(numericSearch)) {
+        filter.$or = [
+          { uniqueCode: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } },
+          { amount: numericSearch }
+        ];
+      } else {
+        filter.$or = [
+          { uniqueCode: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } }
+        ];
+      }
+    }
     
-    // Handle workflow filtering
-    let workflowTransactionIds = null;
+    // Filtering by workflow id: lookup the ApprovalWorkflow
     if (workflowId) {
-      // Convert the workflowId to an ObjectId to ensure a correct match
-      const assignedWorkflowId = mongoose.Types.ObjectId(workflowId);
-      
-      // Find all workflows matching the assignedWorkflow id for FundRequests
+      // Find all workflows that have the given assignedWorkflow id
       const workflows = await ApprovalWorkflow.find({
-        assignedWorkflow: assignedWorkflowId,
-        transactionType: 'FundRequest'
+        assignedWorkflow: workflowId
       });
       
       if (workflows && workflows.length > 0) {
-        workflowTransactionIds = workflows.map(wf => wf.transactionId);
+        // Extract all matching FundRequest transaction ids
+        const transactionIds = workflows.map(wf => wf.transactionId);
+        filter._id = { $in: transactionIds };
       } else {
-        // No matching workflows found; force the filter to return no results
+        // If no matching workflows are found, set a filter that returns no documents
         filter._id = null;
       }
     }
     
-    // Handle pending approver filtering - FIXED LOGIC
-    let pendingApproverTransactionIds = null;
+    // Filter by pending approver - FIXED LOGIC  
     if (pendingApproverId) {
-      console.log('Statistics: Filtering by pending approver:', pendingApproverId);
+      console.log('Filtering by pending approver:', pendingApproverId);
       
       // Find all pending workflows
       const pendingWorkflows = await ApprovalWorkflow.find({
@@ -330,33 +391,28 @@ router.get('/fund-requests/statistics', checkPermission('Report'), async (req, r
         }
       }
 
-      console.log(`Statistics: Found ${relevantWorkflows.length} workflows pending approval from user ${pendingApproverId}`);
+      console.log(`Found ${relevantWorkflows.length} workflows pending approval from user ${pendingApproverId}`);
 
       if (relevantWorkflows.length > 0) {
-        pendingApproverTransactionIds = relevantWorkflows.map(wf => wf.transactionId);
-      } else {
-        // No matching workflows found
-        filter._id = null;
-      }
-    }
-    
-    // Combine workflow and pending approver filters if both exist
-    if (workflowTransactionIds || pendingApproverTransactionIds) {
-      if (workflowTransactionIds && pendingApproverTransactionIds) {
-        // Intersect both sets of IDs
-        const workflowIds = workflowTransactionIds.map(id => id.toString());
-        const pendingIds = pendingApproverTransactionIds.map(id => id.toString());
-        const intersectedIds = workflowIds.filter(id => pendingIds.includes(id));
+        const pendingTransactionIds = relevantWorkflows.map(wf => wf.transactionId);
         
-        if (intersectedIds.length > 0) {
-          filter._id = { $in: intersectedIds.map(id => mongoose.Types.ObjectId(id)) };
+        // If we already have a filter on _id from workflowId, we need to intersect
+        if (filter._id && filter._id.$in) {
+          const existingIds = filter._id.$in.map(id => id.toString());
+          const newIds = pendingTransactionIds.map(id => id.toString());
+          const intersectedIds = existingIds.filter(id => newIds.includes(id));
+          
+          if (intersectedIds.length > 0) {
+            filter._id = { $in: intersectedIds.map(id => mongoose.Types.ObjectId(id)) };
+          } else {
+            filter._id = null; // No intersection found
+          }
         } else {
-          filter._id = null; // No intersection
+          filter._id = { $in: pendingTransactionIds };
         }
-      } else if (workflowTransactionIds) {
-        filter._id = { $in: workflowTransactionIds };
-      } else if (pendingApproverTransactionIds) {
-        filter._id = { $in: pendingApproverTransactionIds };
+      } else {
+        // No matching workflows found - return empty results
+        filter._id = null;
       }
     }
 
