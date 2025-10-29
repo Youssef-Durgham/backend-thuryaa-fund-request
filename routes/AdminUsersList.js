@@ -57,21 +57,13 @@ const checkPermission = (permission) => {
 
 // Get Admin User List
 router.get('/admin-users-list', async (req, res) => {
-  const { page = 1 } = req.query;
-
-  const limit = 50;
-  const skip = (page - 1) * limit;
-
   try {
     const admins = await Admin.find()
       .populate('roles')
       .populate('entities', 'name') // Populate entity names
-      .skip(skip)
-      .limit(limit)
       .sort({ name: 1 });
 
     const totalAdmins = await Admin.countDocuments();
-    const totalPages = Math.ceil(totalAdmins / limit);
 
     const adminsWithEntities = admins.map((admin) => ({
       ...admin.toObject(),
@@ -83,8 +75,6 @@ router.get('/admin-users-list', async (req, res) => {
 
     res.status(200).json({
       admins: adminsWithEntities,
-      currentPage: page,
-      totalPages,
       totalAdmins,
     });
   } catch (error) {
