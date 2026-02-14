@@ -141,45 +141,51 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
 
     await workflow.save({ session });
 
-    // Populate approvers before sending emails
-    await workflow.populate('steps.approvers');
-
-    // Send email to the first step approvers
-    const firstStep = workflow.steps.find(step => step.level === 1);
-    if (firstStep) {
-      for (const approver of firstStep.approvers) {
-        try {
-          await sendEmailNotification({
-            to: approver.email,
-            subject: `إجراء مطلوب: طلب تمويل جديد بانتظار موافقتك`,
-            body: `يوجد طلب تمويل جديد بحاجة إلى موافقتك.\n\nتفاصيل الطلب:\n- الكود: ${uniqueCode}\n- المبلغ: ${balance} ${currency}\n- القسم: ${department}\n\nيمكنك مراجعة الطلب من خلال الرابط التالي:\n${BASE_URL}/fund-requests/${fundRequest._id}`,
-            recipientName: approver.name,
-            actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
-            actionText: 'عرض الطلب'
-          });
-        } catch (emailErr) {
-          console.error(`Failed to send email to approver ${approver._id}:`, emailErr.message);
-        }
-      }
-    }
-
-    await logActivity({
-      action: 'Create_FundRequest',
-      performedBy: req.adminId,
-      targetItem: fundRequest._id,
-      itemType: 'FundRequest',
-      userType: 'Admin',
-      description: `Fund request created: ${uniqueCode}`
-    });
-
     await session.commitTransaction();
     session.endSession();
 
+    // Send emails and log activity AFTER transaction is committed
+    // to avoid deadlocks from non-transactional writes during an open transaction
+    try {
+      await workflow.populate('steps.approvers');
+
+      const firstStep = workflow.steps.find(step => step.level === 1);
+      if (firstStep) {
+        for (const approver of firstStep.approvers) {
+          try {
+            await sendEmailNotification({
+              to: approver.email,
+              subject: `إجراء مطلوب: طلب تمويل جديد بانتظار موافقتك`,
+              body: `يوجد طلب تمويل جديد بحاجة إلى موافقتك.\n\nتفاصيل الطلب:\n- الكود: ${uniqueCode}\n- المبلغ: ${balance} ${currency}\n- القسم: ${department}\n\nيمكنك مراجعة الطلب من خلال الرابط التالي:\n${BASE_URL}/fund-requests/${fundRequest._id}`,
+              recipientName: approver.name,
+              actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
+              actionText: 'عرض الطلب'
+            });
+          } catch (emailErr) {
+            console.error(`Failed to send email to approver ${approver._id}:`, emailErr.message);
+          }
+        }
+      }
+
+      await logActivity({
+        action: 'Create_FundRequest',
+        performedBy: req.adminId,
+        targetItem: fundRequest._id,
+        itemType: 'FundRequest',
+        userType: 'Admin',
+        description: `Fund request created: ${uniqueCode}`
+      });
+    } catch (postCommitErr) {
+      console.error('Post-commit operations error (email/logging):', postCommitErr.message);
+    }
+
     res.status(201).json({ message: 'تم إنشاء طلب التمويل بنجاح.', uniqueCode, fundRequest, workflow });
   } catch (error) {
-    await session.abortTransaction();
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     session.endSession();
-    console.error(error);
+    console.error('Create fund request error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

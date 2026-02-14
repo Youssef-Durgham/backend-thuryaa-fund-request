@@ -1,10 +1,19 @@
 // Assuming we use Express.js for the backend
 const express = require('express');
+const crypto = require('crypto');
 const FundRequest = require('../../model/v2/FundRequest');
 const { Admin } = require('../../model/Users');
 const jwt = require('jsonwebtoken');
 const Entity = require('../../model/v2/Entity');
 const ApprovalWorkflow = require('../../model/v2/ApprovalWorkflow');
+
+const REPORT_SECRET = process.env.TOKEN_SECRET || 'report_link_secret_key';
+
+function generateReportToken(customerNumber, date) {
+  return crypto.createHmac('sha256', REPORT_SECRET)
+    .update(`${customerNumber}:${date}`)
+    .digest('hex');
+}
 
 
 const router = express.Router();
@@ -532,5 +541,84 @@ router.get('/fund-requests/statistics', checkPermission('Report'), async (req, r
   }
 });
   
+
+// =============================================
+// PUBLIC: Customer Account Statement (no auth)
+// =============================================
+router.get('/public/debitbydate/:customerNumber/:date/:token', async (req, res) => {
+  try {
+    const { customerNumber, date, token } = req.params;
+
+    // Validate the HMAC token
+    const expectedToken = generateReportToken(customerNumber, date);
+    if (token !== expectedToken) {
+      return res.status(403).json({ message: 'رابط غير صالح أو منتهي الصلاحية' });
+    }
+
+    // Validate date format
+    const endDate = new Date(date);
+    if (isNaN(endDate.getTime())) {
+      return res.status(400).json({ message: 'تاريخ غير صالح' });
+    }
+    endDate.setHours(23, 59, 59, 999);
+
+    // Fetch fund requests for this customer up to the given date
+    const fundRequests = await FundRequest.find({
+      customerNumber,
+      requestDate: { $lte: endDate }
+    })
+      .populate('requestedBy', 'name')
+      .sort({ requestDate: -1 })
+      .select('uniqueCode description amount currency status requestDate items department')
+      .lean();
+
+    // Get customer name from the first request
+    const customerName = fundRequests.length > 0
+      ? fundRequests[0].requestedBy?.name || ''
+      : '';
+
+    // Calculate totals by currency
+    const totalsByCurrency = {};
+    fundRequests.forEach(req => {
+      const cur = req.currency || 'IQD';
+      if (!totalsByCurrency[cur]) totalsByCurrency[cur] = 0;
+      totalsByCurrency[cur] += req.amount || 0;
+    });
+
+    res.json({
+      customerNumber,
+      customerName,
+      date,
+      totalsByCurrency,
+      fundRequests: fundRequests.map(fr => ({
+        uniqueCode: fr.uniqueCode,
+        description: fr.description,
+        amount: fr.amount,
+        currency: fr.currency,
+        status: fr.status,
+        requestDate: fr.requestDate,
+        department: fr.department,
+        items: fr.items
+      }))
+    });
+  } catch (error) {
+    console.error('Public report error:', error);
+    res.status(500).json({ message: 'خطأ في الخادم' });
+  }
+});
+
+// =============================================
+// Generate secure report link (requires auth)
+// =============================================
+router.get('/generate-report-link/:customerNumber/:date', checkPermission('Report'), async (req, res) => {
+  try {
+    const { customerNumber, date } = req.params;
+    const token = generateReportToken(customerNumber, date);
+    res.json({ token, path: `/public/debitbydate/${customerNumber}/${date}/${token}` });
+  } catch (error) {
+    console.error('Generate report link error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
 
   module.exports = router;
