@@ -22,13 +22,14 @@ customerSchema.pre('save', async function (next) {
   
   // Admin Schema
   const adminSchema = new Schema({
-    phone: { type: String, required: true, unique: true },
+    phone: { type: String },
+    email: { type: String, required: true, unique: true },
     name: { type: String, required: true },
     password: { type: String, required: true },
     roles: [{ type: Schema.Types.ObjectId, ref: 'Role' }],
     forcePasswordChange: { type: Boolean, default: false },
     oldPassword: { type: String },
-    email: { type: String },
+    department: { type: String },
     entityRoles: [{
       entity: { type: Schema.Types.ObjectId, ref: 'Entity', required: true },
       roles: [{ type: Schema.Types.ObjectId, ref: 'Role' }]

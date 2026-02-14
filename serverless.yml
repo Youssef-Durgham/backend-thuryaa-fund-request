@@ -5,7 +5,7 @@ provider:
   versionFunctions: false
   runtime: nodejs18.x
   region: me-south-1
-  profile: alrida-company
+  profile: thuryaa
   memorySize: 3008
   timeout: 300  # Adjusted to 29 seconds to comply with API Gateway limits
   apiGateway:
@@ -26,7 +26,7 @@ functions:
   main:
     handler: index.handler
     environment:
-      MONGO_URL: "mongodb+srv://yusif:yusif123@cluster0.y4yjo.mongodb.net/?retryWrites=true&w=majority"
+      MONGO_URL: "mongodb+srv://laithalobadi1_db_user:0dcuQUbpthHHoKUZ@cluster0.zmwvtyd.mongodb.net/?appName=Cluster0"
       TOKEN_SECRET: "laksj24501dhfgpqowieu578rytmznxbcvql32gotbvjfpqotnvm654xsdrtpldkfjgutewuvnbmxs"
       ADMIN_SECRET_KEY: "FoodoYusif123@"
       JWT_SECRET: "1234567890"
@@ -36,9 +36,10 @@ functions:
       TWILIO_WHATSAPP_PHONE: "+14155238886"
       EMAIL_USERNAME: "yusifdhrgamtrt@gmail.com"
       EMAIL_PASSWORD: "lzjnrolzwuspywug"
-      ACCESS_KEY: "AKIAVCZ3WWWGPXVCKJBA"
-      SECRET_ACCESS_KEY: "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"
-      AWS_NAME: "codellab"
+      S3_ACCESS_KEY: "AKIA3LCHK6AFVYHKLZGR"
+      S3_SECRET_KEY: "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"
+      S3_BUCKET_NAME: "fund-req"
+      S3_REGION: "me-south-1"
       FB_GRAPH_API_TOKEN: "EAAIE6J8ewBUBANQt5nEBIURGdgjURdMs3e9A78qWt1uOMOyfThvjSdgoz0q6ZC2ZBNuZCmba7SNRlpWFdeLuLylMEIrLlkxZAmSjKiZAQyr2uVwvJjytGFZBRnywQUbudJBfxQXWx3rCyOZBscmiWlnrbTswIZAWZAZAsDDbsR8lwqNar58Q9swAfNnZB4xUOvQ8BwURyJUAy0wFgZDZD"
       VIBER_AUTH_TOKEN: "50ae4cd97ca7e5c1-27076050a42dc54c-de9a63fa03059af1"
       TELEGRAM_BOT_TOKEN: "5612346036:AAGb0txW0SPrQSToEIQODxI_gMEdVCMJKWs"

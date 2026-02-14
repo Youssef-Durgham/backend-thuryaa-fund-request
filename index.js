@@ -53,6 +53,7 @@ const approvalsRouter = require('./routes/v2/approvals');
 const journalTemplatesRoutes = require('./routes/v2/journalTemplates');
 const entityManagments = require('./routes/v2/entityManagement');
 const FundReq = require('./routes/v2/FundReq');
+const departmentRoutes = require('./routes/v2/departments');
 const Reports = require('./routes/v2/report');
 
 
@@ -150,6 +151,7 @@ app.use('/api', approvalWorkflowsRouter);
 app.use('/api', approvalsRouter);
 app.use('/api', entityManagments);
 app.use('/api/FundReq', FundReq);
+app.use('/api/departments', departmentRoutes);
 app.use('/api/reports', Reports);
 
 

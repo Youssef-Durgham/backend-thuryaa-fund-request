@@ -63,13 +63,13 @@ const checkPermission = (permission) => {
 
 // Create admin account
 router.post('/create-admin/sys', checkPermission('Create_admin'), async (req, res) => {
-  const { phone, name, password, email, type } = req.body;
+  const { email, name, password, phone, type, department } = req.body;
   try {
-    let admin = await Admin.findOne({ phone });
+    let admin = await Admin.findOne({ email });
     if (admin) {
       return res.status(400).json({ message: 'Admin already exists' });
     }
-    admin = new Admin({ phone, name, password, email, type });
+    admin = new Admin({ email, name, password, phone, type, department });
     await admin.save();
     res.status(201).json({ message: 'Admin created successfully', admin });
   } catch (error) {
@@ -221,13 +221,13 @@ router.post('/assign-role-group-direct', async (req, res) => {
 
 // Admin registration
 router.post('/register/admin', async (req, res) => {
-  const { phone, name, password, roles } = req.body;
+  const { email, name, password, roles, phone, department } = req.body;
   try {
-    let admin = await Admin.findOne({ phone });
+    let admin = await Admin.findOne({ email });
     if (admin) {
       return res.status(400).json({ message: 'Admin already exists' });
     }
-    admin = new Admin({ phone, name, password, roles });
+    admin = new Admin({ email, name, password, roles, phone, department });
     await admin.save();
     res.status(201).json({ message: 'Admin registered successfully' });
   } catch (error) {
@@ -237,20 +237,20 @@ router.post('/register/admin', async (req, res) => {
 
 // Admin login
 router.post('/login/admin', async (req, res) => {
-  const { phone, password, newPassword } = req.body;
+  const { email, password, newPassword } = req.body;
   const session = await mongoose.startSession();
   session.startTransaction();
 
   let transactionCommitted = false;
 
   try {
-    const admin = await Admin.findOne({ phone })
+    const admin = await Admin.findOne({ email })
       .populate('entities')
       .populate('roles')
       .session(session);
 
     if (!admin || !(await bcrypt.compare(password, admin.password))) {
-      throw new Error('Invalid phone or password');
+      throw new Error('Invalid email or password');
     }
 
     // Handle password change if required
@@ -271,7 +271,7 @@ router.post('/login/admin', async (req, res) => {
     const token = jwt.sign({
       id: admin._id,
       userType: 'admin',
-      phone: admin.phone,
+      email: admin.email,
       name: admin.name,
     }, JWT_SECRET, { expiresIn: '365d' });
 
@@ -301,7 +301,9 @@ router.post('/login/admin', async (req, res) => {
       user: {
         id: admin._id,
         name: admin.name,
+        email: admin.email,
         phone: admin.phone,
+        department: admin.department,
         roles: admin.roles
       }
     });

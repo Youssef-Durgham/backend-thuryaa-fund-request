@@ -3,21 +3,22 @@ const AWS = require('aws-sdk');
 const router = express.Router();
 
 AWS.config.update({
-    accessKeyId: "AKIA3C5J5EFKLTFFSNTE",
-    secretAccessKey: "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",
-    region: "me-south-1",
-  });
-  
-  const s3 = new AWS.S3();
+  accessKeyId: process.env.S3_ACCESS_KEY,
+  secretAccessKey: process.env.S3_SECRET_KEY,
+  region: process.env.S3_REGION,
+});
 
+const s3 = new AWS.S3();
+const BUCKET = process.env.S3_BUCKET_NAME;
+
+// Upload: get a presigned URL to upload a file (private, no ACL)
 router.get('/s3/signed-url', async (req, res) => {
   const { filename, filetype } = req.query;
   const s3Params = {
-    Bucket: 's3-pr-po',
+    Bucket: BUCKET,
     Key: filename,
-    Expires: 60, // Expires in 60 seconds
+    Expires: 60,
     ContentType: filetype,
-    ACL: 'public-read' // or another ACL according to your requirements
   };
 
   s3.getSignedUrl('putObject', s3Params, (err, data) => {
@@ -25,8 +26,25 @@ router.get('/s3/signed-url', async (req, res) => {
       console.log('Error getting signed URL', err);
       return res.status(500).json({ success: false, error: 'Server Error' });
     }
-    const url = `https://${s3Params.Bucket}.s3.me-south-1.amazonaws.com/${encodeURIComponent(filename)}`;
-    res.json({ signedUrl: data, url, key: filename });
+    res.json({ signedUrl: data, key: filename });
+  });
+});
+
+// Download: get a presigned URL to view/download a private file
+router.get('/s3/get-url', async (req, res) => {
+  const { key } = req.query;
+  const s3Params = {
+    Bucket: BUCKET,
+    Key: key,
+    Expires: 3600, // link valid for 1 hour
+  };
+
+  s3.getSignedUrl('getObject', s3Params, (err, data) => {
+    if (err) {
+      console.log('Error getting signed URL', err);
+      return res.status(500).json({ success: false, error: 'Server Error' });
+    }
+    res.json({ url: data });
   });
 });
 

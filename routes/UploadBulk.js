@@ -57,23 +57,23 @@ const checkPermission = (permission) => {
 
 
 AWS.config.update({
-    accessKeyId: "AKIA2A7TW4X33V7ZXGPN",
-    secretAccessKey: "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",
-    region: "me-south-1",
+    accessKeyId: process.env.S3_ACCESS_KEY,
+    secretAccessKey: process.env.S3_SECRET_KEY,
+    region: process.env.S3_REGION,
 });
-  
+
 const s3 = new AWS.S3();
+const BUCKET = process.env.S3_BUCKET_NAME;
 
 // Route for generating presigned URL
 router.post('/generate-presigned-url', checkPermission('Upload_Opening_Balance'), async (req, res) => {
   const { fileName, contentType } = req.body;
 
   const params = {
-    Bucket: 'taxi-app-najaf3',
+    Bucket: BUCKET,
     Key: `uploads/${Date.now()}-${fileName}`,
     ContentType: contentType,
-    Expires: 900, // URL expires in 15 minutes
-    ACL: 'public-read'
+    Expires: 900,
   };
 
   try {
@@ -251,7 +251,7 @@ router.delete('/delete-s3-image', checkPermission('Upload_Opening_Balance'), asy
     const { fileKey } = req.body;
   
     const params = {
-      Bucket: 'taxi-app-najaf3',
+      Bucket: BUCKET,
       Key: fileKey
     };
   
@@ -263,5 +263,23 @@ router.delete('/delete-s3-image', checkPermission('Upload_Opening_Balance'), asy
       res.status(500).json({ error: 'Failed to delete image from S3' });
     }
   });
+
+// Get a presigned URL to view a private S3 file
+router.get('/get-image-url', async (req, res) => {
+    const { key } = req.query;
+    const params = {
+      Bucket: BUCKET,
+      Key: key,
+      Expires: 3600,
+    };
+
+    try {
+      const url = await s3.getSignedUrlPromise('getObject', params);
+      res.json({ url });
+    } catch (error) {
+      console.error('Error generating view URL:', error);
+      res.status(500).json({ error: 'Failed to generate view URL' });
+    }
+});
 
 module.exports = router;
