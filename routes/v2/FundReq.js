@@ -69,11 +69,17 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
 
   try {
     const {
+      description,
       details,
+      amount,
       balance,
       currency,
       department,
+      handDelivery,
       handedTo,
+      customerNumber,
+      items,
+      documents,
       attachments,
       requestDate,
       requestTime
@@ -93,12 +99,17 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
 
     const fundRequest = new FundRequest({
       uniqueCode,
-      details,
-      balance,
+      description: description || details,
+      details: details || description,
+      amount: amount || balance,
+      balance: balance || amount,
       currency,
       department,
-      handedTo,
-      attachments,
+      handedTo: handDelivery || handedTo,
+      customerNumber,
+      items: items || [],
+      documents: documents || [],
+      attachments: attachments || documents || [],
       status: 'Pending',
       requestedBy: req.adminId,
       requestDate: requestDate || Date.now(),

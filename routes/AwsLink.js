@@ -26,7 +26,8 @@ router.get('/s3/signed-url', async (req, res) => {
       console.log('Error getting signed URL', err);
       return res.status(500).json({ success: false, error: 'Server Error' });
     }
-    res.json({ signedUrl: data, key: filename });
+    const url = `https://${BUCKET}.s3.${process.env.S3_REGION}.amazonaws.com/${filename}`;
+    res.json({ signedUrl: data, key: filename, url });
   });
 });
 
