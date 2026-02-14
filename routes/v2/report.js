@@ -614,7 +614,7 @@ router.get('/generate-report-link/:customerNumber/:date', checkPermission('Repor
   try {
     const { customerNumber, date } = req.params;
     const token = generateReportToken(customerNumber, date);
-    res.json({ token, path: `/public/debitbydate/${customerNumber}/${date}/${token}` });
+    res.json({ token, path: `/report/debitbydate/${customerNumber}/${date}/${token}` });
   } catch (error) {
     console.error('Generate report link error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
