@@ -167,8 +167,8 @@ const generateEmailTemplate = ({ recipientName, subject, message, actionUrl, act
           <!-- Header -->
           <tr>
             <td class="header">
-              <h1 style="color: #ffffff; margin: 0; font-size: 28px;">✨ الغدير ✨</h1>
-              <p style="color: #ffffff; margin: 10px 0 0 0;">العقارية</p>
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px;">✨ شركة الثريا ✨</h1>
+              <p style="color: #ffffff; margin: 10px 0 0 0;"></p>
             </td>
           </tr>
           
@@ -205,7 +205,7 @@ const generateEmailTemplate = ({ recipientName, subject, message, actionUrl, act
           <!-- Footer -->
           <tr>
             <td style="background-color: #f6f6f6; padding: 30px 20px; text-align: center; border-radius: 0 0 8px 8px;">
-              <p style="margin: 0; color: #666666;">🏢 الغدير العقارية</p>
+              <p style="margin: 0; color: #666666;">🏢 شركة الثريا </p>
               <p style="margin: 10px 0; color: #666666;">📍 Baghdad, Iraq</p>
               <p style="margin: 20px 0 0 0;">
 
@@ -226,7 +226,7 @@ const sendEmailNotification = async ({ to, subject, body, recipientName, actionU
   
   try {
     const mailOptions = {
-      from: '"الغدير" <info@spc-it.com.iq>', // Sender address
+      from: '"شركة الثريا" <info@spc-it.com.iq>', // Sender address
       to,
       subject,
       text: body, // Plain text version

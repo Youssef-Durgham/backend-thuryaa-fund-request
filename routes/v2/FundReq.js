@@ -10,7 +10,7 @@ const jwt = require('jsonwebtoken');
 const Entity = require('../../model/v2/Entity');
 const FundRequestCounter = require('../../model/v2/FundRequestCounter');
 
-const BASE_URL = process.env.BASE_URL || 'https://rida-funds.spc-it.com.iq';
+const BASE_URL = process.env.BASE_URL || 'https://thuryaa-fundreq.spc-it.com.iq';
 
 const router = express.Router();
 
@@ -889,6 +889,66 @@ router.post('/assigned-workflows/:workflowId/remove-user', checkPermission('Mana
     res.status(200).json({ message: 'User removed from workflow successfully.', assignedWorkflow });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+
+
+// Send PDF via email to all workflow members
+router.post('/fund-requests/:id/send-pdf', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'Unauthorized' });
+    
+    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const { pdfBase64, recipients } = req.body;
+    
+    if (!pdfBase64 || !recipients || !recipients.length) {
+      return res.status(400).json({ message: 'pdfBase64 and recipients are required' });
+    }
+
+    const fundRequest = await FundRequest.findById(req.params.id);
+    if (!fundRequest) return res.status(404).json({ message: 'Fund request not found' });
+
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+      host: 'smtpout.secureserver.net',
+      port: 465,
+      secure: true,
+      auth: {
+        user: "info@spc-it.com.iq",
+        pass: "AltShiftDel123"
+      }
+    });
+
+    // Convert base64 data URL to buffer
+    const base64Data = pdfBase64.replace(/^data:image\/\w+;base64,/, '');
+    const pdfBuffer = Buffer.from(base64Data, 'base64');
+
+    for (const email of recipients) {
+      try {
+        await transporter.sendMail({
+          from: '"شركة الثريا" <info@spc-it.com.iq>',
+          to: email,
+          subject: `طلب صرف - ${fundRequest.uniqueCode || fundRequest._id}`,
+          text: `مرفق طلب الصرف رقم ${fundRequest.uniqueCode || fundRequest._id}`,
+          html: `<div dir="rtl"><p>مرفق طلب الصرف رقم <strong>${fundRequest.uniqueCode || fundRequest._id}</strong></p><p>شركة الثريا</p></div>`,
+          attachments: [{
+            filename: `FundRequest_${fundRequest.uniqueCode || fundRequest._id}.jpg`,
+            content: pdfBuffer,
+            contentType: 'image/jpeg'
+          }]
+        });
+        console.log(`[PDF Email] Sent to ${email}`);
+      } catch (err) {
+        console.error(`[PDF Email] Failed to send to ${email}:`, err.message);
+      }
+    }
+
+    res.json({ message: 'PDF sent successfully', sentTo: recipients.length });
+  } catch (error) {
+    console.error('[PDF Email] Error:', error);
+    res.status(500).json({ message: 'Failed to send PDF', error: error.message });
   }
 });
 
