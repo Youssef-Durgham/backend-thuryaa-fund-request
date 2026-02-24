@@ -32,7 +32,7 @@ const checkPermission = (permission) => {
         .populate({ path: 'entityRoles.roles' });
 
       if (!admin) {
-        return res.status(401).json({ message: 'Unauthorized: User not found' });
+        return res.status(401).json({ message: 'غير مصرح: المستخدم غير موجود' });
       }
 
       // If the user is a System user, bypass permission checks
@@ -57,7 +57,7 @@ const checkPermission = (permission) => {
       console.log(permission, token, decoded, admin, hasPermission);
 
       if (!hasPermission) {
-        return res.status(403).json({ message: 'Forbidden: Insufficient permissions' });
+        return res.status(403).json({ message: 'محظور: صلاحيات غير كافية' });
       }
 
       req.adminId = decoded.id; // Store the admin ID in the request object
@@ -76,16 +76,16 @@ router.post('/create-admin/sys', checkPermission('Create_admin'), async (req, re
   try {
     let admin = await Admin.findOne({ email });
     if (admin) {
-      return res.status(400).json({ message: 'Admin already exists' });
+      return res.status(400).json({ message: 'المشرف موجود بالفعل' });
     }
     admin = new Admin({ email, name, password, phone, type, department });
     await admin.save();
     // Return admin without password
     const adminObj = admin.toObject();
     delete adminObj.password;
-    res.status(201).json({ message: 'Admin created successfully', admin: adminObj });
+    res.status(201).json({ message: 'تم إنشاء المشرف بنجاح', admin: adminObj });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
+    res.status(500).json({ message: 'خطأ في الخادم', error });
   }
 });
 
@@ -109,9 +109,9 @@ router.post('/add-role/sys', async (req, res) => {
     });
     await activityLog.save();
 
-    res.status(201).json({ message: 'Role added successfully', role });
+    res.status(201).json({ message: 'تمت إضافة الصلاحية بنجاح', role });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
+    res.status(500).json({ message: 'خطأ في الخادم', error });
   }
 });
 
@@ -135,9 +135,9 @@ router.post('/add-role-group/sys', async (req, res) => {
     });
     await activityLog.save();
 
-    res.status(201).json({ message: 'Role group added successfully', roleGroup });
+    res.status(201).json({ message: 'تمت إضافة مجموعة الصلاحيات بنجاح', roleGroup });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
+    res.status(500).json({ message: 'خطأ في الخادم', error });
   }
 });
 
@@ -151,7 +151,7 @@ router.post('/assign-role-to-group/sys', checkPermission('assign_roles'), async 
     const roleGroup = await RoleGroup.findById(groupId);
     const role = await Role.findById(roleId);
     if (!roleGroup || !role) {
-      return res.status(404).json({ message: 'Role group or Role not found' });
+      return res.status(404).json({ message: 'مجموعة الصلاحيات أو الصلاحية غير موجودة' });
     }
     roleGroup.roles.push(roleId);
     await roleGroup.save();
@@ -166,9 +166,9 @@ router.post('/assign-role-to-group/sys', checkPermission('assign_roles'), async 
     });
     await activityLog.save();
 
-    res.status(200).json({ message: 'Role assigned to group successfully' });
+    res.status(200).json({ message: 'تم تعيين الصلاحية للمجموعة بنجاح' });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
+    res.status(500).json({ message: 'خطأ في الخادم', error });
   }
 });
 
@@ -179,7 +179,7 @@ router.post('/assign-role-to-group', checkPermission('assign_roles'), async (req
     const roleGroup = await RoleGroup.findById(groupId);
     const role = await Role.findById(roleId);
     if (!roleGroup || !role) {
-      return res.status(404).json({ message: 'Role group or Role not found' });
+      return res.status(404).json({ message: 'مجموعة الصلاحيات أو الصلاحية غير موجودة' });
     }
     roleGroup.roles.push(roleId);
     await roleGroup.save();
@@ -194,9 +194,9 @@ router.post('/assign-role-to-group', checkPermission('assign_roles'), async (req
     });
     await activityLog.save();
 
-    res.status(200).json({ message: 'Role assigned to group successfully' });
+    res.status(200).json({ message: 'تم تعيين الصلاحية للمجموعة بنجاح' });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
+    res.status(500).json({ message: 'خطأ في الخادم', error });
   }
 });
 
@@ -210,7 +210,7 @@ router.post('/assign-role-group-direct', async (req, res) => {
     const admin = await Admin.findById(adminId);
     const roleGroup = await RoleGroup.findById(groupId).populate('roles');
     if (!admin || !roleGroup) {
-      return res.status(404).json({ message: 'Admin or Role group not found' });
+      return res.status(404).json({ message: 'المشرف أو مجموعة الصلاحيات غير موجودة' });
     }
     admin.roleGroups.push(groupId);
     await admin.save();
@@ -225,9 +225,9 @@ router.post('/assign-role-group-direct', async (req, res) => {
     });
     await activityLog.save();
 
-    res.status(200).json({ message: 'Role group assigned successfully' });
+    res.status(200).json({ message: 'تم تعيين مجموعة الصلاحيات بنجاح' });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
+    res.status(500).json({ message: 'خطأ في الخادم', error });
   }
 });
 
@@ -237,13 +237,13 @@ router.post('/register/admin', async (req, res) => {
   try {
     let admin = await Admin.findOne({ email });
     if (admin) {
-      return res.status(400).json({ message: 'Admin already exists' });
+      return res.status(400).json({ message: 'المشرف موجود بالفعل' });
     }
     admin = new Admin({ email, name, password, roles, phone, department });
     await admin.save();
-    res.status(201).json({ message: 'Admin registered successfully' });
+    res.status(201).json({ message: 'تم تسجيل المشرف بنجاح' });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
+    res.status(500).json({ message: 'خطأ في الخادم', error });
   }
 });
 
@@ -262,16 +262,16 @@ router.post('/login/admin', async (req, res) => {
       .session(session);
 
     if (!admin || !(await bcrypt.compare(password, admin.password))) {
-      throw new Error('Invalid email or password');
+      throw new Error('بريد إلكتروني أو كلمة مرور غير صحيحة');
     }
 
     // Handle password change if required
     if (admin.forcePasswordChange) {
       if (!newPassword) {
-        throw new Error('Password change required');
+        throw new Error('يجب تغيير كلمة المرور');
       }
       if (await bcrypt.compare(newPassword, admin.oldPassword)) {
-        throw new Error('New password cannot be same as old password');
+        throw new Error('كلمة المرور الجديدة لا يمكن أن تكون نفس القديمة');
       }
       admin.oldPassword = admin.password;
       admin.password = await bcrypt.hash(newPassword, 10);
@@ -336,7 +336,7 @@ router.post('/reset-password', async (req, res) => {
     try {
       const admin = await Admin.findById(adminId);
       if (!admin) {
-        return res.status(404).json({ message: 'Admin not found' });
+        return res.status(404).json({ message: 'المشرف غير موجود' });
       }
       admin.oldPassword = admin.password; // Store the old password
       admin.password = initialPassword;
@@ -353,10 +353,10 @@ router.post('/reset-password', async (req, res) => {
       });
       await activityLog.save();
   
-      res.status(200).json({ message: 'Password reset successfully' });
+      res.status(200).json({ message: 'تم إعادة تعيين كلمة المرور بنجاح' });
     } catch (error) {
       console.log(error)
-      res.status(500).json({ message: 'Server error', error });
+      res.status(500).json({ message: 'خطأ في الخادم', error });
     }
   });
 
@@ -364,7 +364,7 @@ router.post('/reset-password', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
   
     if (!token) {
-      return res.status(401).json({ message: 'No token provided' });
+      return res.status(401).json({ message: 'لم يتم توفير الرمز' });
     }
   
     try {
@@ -375,17 +375,17 @@ router.post('/reset-password', async (req, res) => {
       const admin = await Admin.findById(decoded.id).select('-password');
   
       if (!admin) {
-        return res.status(404).json({ message: 'Admin not found' });
+        return res.status(404).json({ message: 'المشرف غير موجود' });
       }
   
       // Check if the admin needs to change their password
       if (admin.forcePasswordChange) {
-        return res.status(403).json({ message: 'Password change required', forcePasswordChange: true });
+        return res.status(403).json({ message: 'يجب تغيير كلمة المرور', forcePasswordChange: true });
       }
   
       // Token is valid and admin exists
       res.json({
-        message: 'Token is valid',
+        message: 'الرمز صالح',
         admin: {
           id: admin._id,
           name: admin.name,
@@ -395,10 +395,10 @@ router.post('/reset-password', async (req, res) => {
       });
     } catch (error) {
       if (error instanceof jwt.JsonWebTokenError) {
-        return res.status(401).json({ message: 'Invalid token' });
+        return res.status(401).json({ message: 'رمز غير صالح' });
       }
       console.error('Error in /AdminLogin/verify:', error);
-      res.status(500).json({ message: 'Internal server error' });
+      res.status(500).json({ message: 'خطأ داخلي في الخادم' });
     }
   });
 
@@ -408,14 +408,14 @@ router.post('/AdminLogin/reset-password', async (req, res) => {
 
   // Ensure required fields are provided
   if (!adminId || !newPassword) {
-    return res.status(400).json({ message: 'Required fields missing' });
+    return res.status(400).json({ message: 'حقول مطلوبة مفقودة' });
   }
 
   try {
     // Find the admin by provided adminId
     const admin = await Admin.findById(adminId);
     if (!admin) {
-      return res.status(404).json({ message: 'Admin not found' });
+      return res.status(404).json({ message: 'المشرف غير موجود' });
     }
 
     // Update password (the pre-save hook will hash it)
@@ -427,10 +427,10 @@ router.post('/AdminLogin/reset-password', async (req, res) => {
     // Save the updated admin document
     await admin.save();
 
-    res.json({ message: 'Password reset successful' });
+    res.json({ message: 'تم إعادة تعيين كلمة المرور بنجاح' });
   } catch (error) {
     console.error("Error in /AdminLogin/reset-password:", error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: 'خطأ داخلي في الخادم' });
   }
 });
 

@@ -26,7 +26,7 @@ const checkPermission = (permission) => {
       });
 
       if (!admin) {
-        return res.status(404).json({ message: 'Admin not found' });
+        return res.status(404).json({ message: 'المشرف غير موجود' });
       }
 
       if (admin.type === 'System') {
@@ -37,7 +37,7 @@ const checkPermission = (permission) => {
       // Fetch the entity with code 'C1'
       const entityC1 = await Entity.findOne({ code: 'C1' });
       if (!entityC1) {
-        return res.status(404).json({ message: 'Entity with code C1 not found' });
+        return res.status(404).json({ message: 'الجهة برمز C1 غير موجودة' });
       }
 
       const hasPermission = admin.entityRoles.some(entityRole => {
@@ -48,14 +48,14 @@ const checkPermission = (permission) => {
       });
 
       if (!hasPermission) {
-        return res.status(403).json({ message: 'Forbidden' });
+        return res.status(403).json({ message: 'محظور' });
       }
 
       req.adminId = decoded.id;
       next();
     } catch (error) {
       console.error('Permission Check Error:', error.message);
-      res.status(401).json({ message: 'Unauthorized', error: error.message });
+      res.status(401).json({ message: 'غير مصرح', error: error.message });
     }
   };
 };
@@ -122,7 +122,7 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
     // Validate assigned workflow
     const assignedWorkflow = await AssignedWorkflow.findById(req.params.workflowId);
     if (!assignedWorkflow) {
-      throw new Error('Assigned workflow not found.');
+      throw new Error('سلسلة الموافقات المعينة غير موجودة.');
     }
 
     const workflow = new ApprovalWorkflow({
@@ -189,7 +189,7 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
     }
     session.endSession();
     console.error('Create fund request error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'خطأ في الخادم', error: error.message });
   }
 });
 
@@ -512,7 +512,7 @@ router.post('/fund-requests/:workflowId/cancel', checkPermission('Cancel_FundReq
     if (!workflow) throw new Error('Workflow not found.');
 
     const fundRequest = await FundRequest.findById(workflow.transactionId).session(session);
-    if (!fundRequest) throw new Error('Fund request not found.');
+    if (!fundRequest) throw new Error('طلب الصرف غير موجود.');
 
     if (fundRequest.requestedBy.toString() !== req.adminId) {
       throw new Error('Only the requester can cancel this fund request.');
@@ -551,7 +551,7 @@ router.post('/fund-requests/:workflowId/cancel', checkPermission('Cancel_FundReq
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'خطأ في الخادم', error: error.message });
   }
 });
 
@@ -569,7 +569,7 @@ router.get('/fund-requests/:id', checkPermission('View_FundRequest'), async (req
       .lean();
 
     if (!fundRequest) {
-      return res.status(404).json({ message: 'Fund request not found.' });
+      return res.status(404).json({ message: 'طلب الصرف غير موجود.' });
     }
 
     const workflow = await ApprovalWorkflow.findOne({ transactionId: id })
@@ -579,12 +579,12 @@ router.get('/fund-requests/:id', checkPermission('View_FundRequest'), async (req
       .lean();
 
     res.status(200).json({
-      message: 'Fund request details retrieved successfully.',
+      message: 'تم جلب تفاصيل طلب الصرف بنجاح.',
       data: { fundRequest, workflow }
     });
   } catch (error) {
     console.error('Error fetching fund request:', error.message);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'خطأ في الخادم', error: error.message });
   }
 });
 
@@ -619,14 +619,14 @@ router.get('/fund-requests-paid', checkPermission('View_Paid_FundRequests'), asy
       .lean();
 
     res.status(200).json({
-      message: 'Paid fund requests retrieved successfully.',
+      message: 'تم جلب طلبات الصرف المدفوعة بنجاح.',
       totalRequests: total,
       currentPage: pageNumber,
       totalPages: Math.ceil(total / limitNumber),
       requests
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'خطأ في الخادم', error: error.message });
   }
 });
 
@@ -705,7 +705,7 @@ router.get('/workflows/user-approvals', checkPermission('View_FundRequests'), as
   try {
     const userId = req.adminId;
     if (!userId) {
-      return res.status(400).json({ message: 'Invalid user ID.' });
+      return res.status(400).json({ message: 'معرف المستخدم غير صالح.' });
     }
 
     const { page = 1, limit = 10, search = '', workflowId } = req.query;
@@ -776,7 +776,7 @@ router.get('/workflows/user-approvals', checkPermission('View_FundRequests'), as
     const total = totalCount[0]?.count || 0;
 
     return res.status(200).json({
-      message: 'Workflows retrieved successfully.',
+      message: 'تم جلب سلاسل الموافقات بنجاح.',
       totalRequests: total,
       currentPage: pageNumber,
       totalPages: Math.ceil(total / limitNumber),
@@ -784,7 +784,7 @@ router.get('/workflows/user-approvals', checkPermission('View_FundRequests'), as
     });
   } catch (error) {
     console.error('Error fetching user-approvals:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'خطأ في الخادم', error: error.message });
   }
 });
 
@@ -800,7 +800,7 @@ router.post('/workflows', checkPermission('Create_Workflow'), async (req, res) =
 
     const existingWorkflow = await AssignedWorkflow.findOne({ transactionType });
     if (existingWorkflow) {
-      return res.status(400).json({ message: 'Workflow already exists for this transaction type.' });
+      return res.status(400).json({ message: 'سلسلة الموافقات موجودة بالفعل لهذا النوع.' });
     }
 
     const newWorkflow = new AssignedWorkflow({ transactionType, steps });
@@ -815,9 +815,9 @@ router.post('/workflows', checkPermission('Create_Workflow'), async (req, res) =
       description: `Created workflow for ${transactionType}`
     });
 
-    res.status(201).json({ message: 'Workflow created successfully.', workflow: newWorkflow });
+    res.status(201).json({ message: 'تم إنشاء سلسلة الموافقات بنجاح.', workflow: newWorkflow });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'خطأ في الخادم', error: error.message });
   }
 });
 
@@ -825,9 +825,9 @@ router.post('/workflows', checkPermission('Create_Workflow'), async (req, res) =
 router.get('/workflows', checkPermission('View_Workflows'), async (req, res) => {
   try {
     const workflows = await AssignedWorkflow.find().populate('steps.approvers', 'name email department');
-    res.status(200).json({ message: 'Workflows retrieved successfully.', workflows });
+    res.status(200).json({ message: 'تم جلب سلاسل الموافقات بنجاح.', workflows });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'خطأ في الخادم', error: error.message });
   }
 });
 
@@ -854,9 +854,9 @@ router.post('/assigned-workflows', checkPermission('Manage_AssignedWorkflow'), a
       description: `Managed assigned workflow for ${transactionType}`
     });
 
-    res.status(200).json({ message: 'Assigned workflow managed successfully.', assignedWorkflow });
+    res.status(200).json({ message: 'تم إدارة سلسلة الموافقات المعينة بنجاح.', assignedWorkflow });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'خطأ في الخادم', error: error.message });
   }
 });
 
@@ -868,12 +868,12 @@ router.post('/assigned-workflows/:workflowId/add-user', checkPermission('Manage_
 
     const assignedWorkflow = await AssignedWorkflow.findById(workflowId);
     if (!assignedWorkflow) {
-      return res.status(404).json({ message: 'Assigned workflow not found.' });
+      return res.status(404).json({ message: 'سلسلة الموافقات المعينة غير موجودة.' });
     }
 
     const step = assignedWorkflow.steps.find(step => step.level === level);
     if (!step) {
-      return res.status(400).json({ message: `Step level ${level} not found.` });
+      return res.status(400).json({ message: `الخطوة ${level} غير موجودة.` });
     }
 
     if (!step.approvers.includes(userId)) {
@@ -891,9 +891,9 @@ router.post('/assigned-workflows/:workflowId/add-user', checkPermission('Manage_
       description: `Added user ${userId} to workflow at level ${level}`
     });
 
-    res.status(200).json({ message: 'User added to workflow successfully.', assignedWorkflow });
+    res.status(200).json({ message: 'تمت إضافة المستخدم لسلسلة الموافقات بنجاح.', assignedWorkflow });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'خطأ في الخادم', error: error.message });
   }
 });
 
@@ -905,12 +905,12 @@ router.post('/assigned-workflows/:workflowId/remove-user', checkPermission('Mana
 
     const assignedWorkflow = await AssignedWorkflow.findById(workflowId);
     if (!assignedWorkflow) {
-      return res.status(404).json({ message: 'Assigned workflow not found.' });
+      return res.status(404).json({ message: 'سلسلة الموافقات المعينة غير موجودة.' });
     }
 
     const step = assignedWorkflow.steps.find(step => step.level === level);
     if (!step) {
-      return res.status(400).json({ message: `Step level ${level} not found.` });
+      return res.status(400).json({ message: `الخطوة ${level} غير موجودة.` });
     }
 
     step.approvers = step.approvers.filter(approver => approver.toString() !== userId);
@@ -925,9 +925,9 @@ router.post('/assigned-workflows/:workflowId/remove-user', checkPermission('Mana
       description: `Removed user ${userId} from workflow at level ${level}`
     });
 
-    res.status(200).json({ message: 'User removed from workflow successfully.', assignedWorkflow });
+    res.status(200).json({ message: 'تمت إزالة المستخدم من سلسلة الموافقات بنجاح.', assignedWorkflow });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'خطأ في الخادم', error: error.message });
   }
 });
 
@@ -937,17 +937,17 @@ router.post('/assigned-workflows/:workflowId/remove-user', checkPermission('Mana
 router.post('/fund-requests/:id/send-pdf', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'Unauthorized' });
+    if (!token) return res.status(401).json({ message: 'غير مصرح' });
     
     const decoded = jwt.verify(token, 'your_jwt_secret');
     const { pdfBase64, recipients } = req.body;
     
     if (!pdfBase64 || !recipients || !recipients.length) {
-      return res.status(400).json({ message: 'pdfBase64 and recipients are required' });
+      return res.status(400).json({ message: 'pdfBase64 والمستلمون مطلوبون' });
     }
 
     const fundRequest = await FundRequest.findById(req.params.id);
-    if (!fundRequest) return res.status(404).json({ message: 'Fund request not found' });
+    if (!fundRequest) return res.status(404).json({ message: 'طلب الصرف غير موجود' });
 
     const nodemailer = require('nodemailer');
     const transporter = nodemailer.createTransport({
@@ -984,10 +984,10 @@ router.post('/fund-requests/:id/send-pdf', async (req, res) => {
       }
     }
 
-    res.json({ message: 'PDF sent successfully', sentTo: recipients.length });
+    res.json({ message: 'تم إرسال PDF بنجاح', sentTo: recipients.length });
   } catch (error) {
     console.error('[PDF Email] Error:', error);
-    res.status(500).json({ message: 'Failed to send PDF', error: error.message });
+    res.status(500).json({ message: 'فشل في إرسال PDF', error: error.message });
   }
 });
 

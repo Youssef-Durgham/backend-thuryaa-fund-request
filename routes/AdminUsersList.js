@@ -22,7 +22,7 @@ const checkPermission = (permission) => {
       const admin = await Admin.findById(decoded.id).populate('roles');
 
       if (!admin) {
-        return res.status(401).json({ message: 'Unauthorized: User not found' });
+        return res.status(401).json({ message: 'غير مصرح: المستخدم غير موجود' });
       }
 
       // If the user is a System user, bypass permission checks
@@ -41,7 +41,7 @@ const checkPermission = (permission) => {
 
       if (!hasPermission) {
         console.log("not have per",hasPermission)
-        return res.status(403).json({ message: 'Forbidden: Insufficient permissions' });
+        return res.status(403).json({ message: 'محظور: صلاحيات غير كافية' });
       }
 
       req.adminId = decoded.id; // Store the admin ID in the request object
@@ -79,7 +79,7 @@ router.get('/admin-users-list', async (req, res) => {
     });
   } catch (error) {
     console.log(error)
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'خطأ في الخادم', error: error.message });
   }
 });
 
@@ -107,7 +107,7 @@ router.get('/activity-log/:userId', async (req, res) => {
       totalLogs
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
+    res.status(500).json({ message: 'خطأ في الخادم', error });
   }
 });
 
@@ -135,7 +135,7 @@ router.get('/login-history/:adminId', async (req, res) => {
       totalLogs
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
+    res.status(500).json({ message: 'خطأ في الخادم', error });
   }
 });
 
@@ -146,7 +146,7 @@ router.get('/admins/activate_order_casher', async (req, res) => {
     const role = await Role.findOne({ name: 'activate_order_casher' });
 
     if (!role) {
-      return res.status(404).json({ message: 'Role not found' });
+      return res.status(404).json({ message: 'الصلاحية غير موجودة' });
     }
 
     // Find all admins with this role
@@ -154,7 +154,7 @@ router.get('/admins/activate_order_casher', async (req, res) => {
 
     res.status(200).json(admins);
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
+    res.status(500).json({ message: 'خطأ في الخادم', error });
   }
 });
   
