@@ -26,8 +26,10 @@ const checkPermission = (permission) => {
       const decoded = jwt.verify(token, 'your_jwt_secret');
       console.log(decoded);
 
-      // Find the admin user
-      const admin = await Admin.findById(decoded.id).populate('roles');
+      // Find the admin user - populate both roles and entityRoles.roles
+      const admin = await Admin.findById(decoded.id)
+        .populate('roles')
+        .populate({ path: 'entityRoles.roles' });
 
       if (!admin) {
         return res.status(401).json({ message: 'Unauthorized: User not found' });
@@ -41,9 +43,16 @@ const checkPermission = (permission) => {
       }
 
       // Check permissions in directly assigned roles
-      const hasPermission = admin.roles.some(role =>
+      let hasPermission = admin.roles.some(role =>
         role.permissions.includes(permission)
       );
+
+      // Also check permissions in entityRoles (v2 entity-based roles)
+      if (!hasPermission) {
+        hasPermission = admin.entityRoles.some(entityRole =>
+          entityRole.roles.some(role => role.permissions && role.permissions.includes(permission))
+        );
+      }
 
       console.log(permission, token, decoded, admin, hasPermission);
 
@@ -71,7 +80,10 @@ router.post('/create-admin/sys', checkPermission('Create_admin'), async (req, re
     }
     admin = new Admin({ email, name, password, phone, type, department });
     await admin.save();
-    res.status(201).json({ message: 'Admin created successfully', admin });
+    // Return admin without password
+    const adminObj = admin.toObject();
+    delete adminObj.password;
+    res.status(201).json({ message: 'Admin created successfully', admin: adminObj });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error });
   }

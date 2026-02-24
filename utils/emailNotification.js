@@ -221,7 +221,7 @@ const generateEmailTemplate = ({ recipientName, subject, message, actionUrl, act
   `;
 };
 
-const sendEmailNotification = async ({ to, subject, body, recipientName, actionUrl }) => {
+const sendEmailNotification = async ({ to, subject, body, recipientName, actionUrl, attachments }) => {
   console.log(`[Email] Preparing to send email to: ${to}, Subject: "${subject}"`);
   
   try {
@@ -236,7 +236,8 @@ const sendEmailNotification = async ({ to, subject, body, recipientName, actionU
         message: body,
         actionUrl,
         actionText: 'عرض التفاصيل'
-      })
+      }),
+      attachments: attachments || []
     };
 
     await transporter.sendMail(mailOptions);

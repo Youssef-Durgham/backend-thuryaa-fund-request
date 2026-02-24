@@ -6,6 +6,7 @@ const FundRequest = require('../../model/v2/FundRequest');
 const { Admin } = require('../../model/Users');
 const logActivity = require('../../utils/activityLogger');
 const sendEmailNotification = require('../../utils/emailNotification');
+const generateFundRequestPDF = require('../../utils/generateFundRequestPDF');
 const jwt = require('jsonwebtoken');
 const Entity = require('../../model/v2/Entity');
 const FundRequestCounter = require('../../model/v2/FundRequestCounter');
@@ -151,6 +152,7 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
 
       const firstStep = workflow.steps.find(step => step.level === 1);
       if (firstStep) {
+        const pdfBuffer = await generateFundRequestPDF(fundRequest, workflow);
         for (const approver of firstStep.approvers) {
           try {
             await sendEmailNotification({
@@ -159,7 +161,8 @@ router.post('/fund-requests/full/:workflowId', checkPermission('Create_FundReque
               body: `يوجد طلب تمويل جديد بحاجة إلى موافقتك.\n\nتفاصيل الطلب:\n- الكود: ${uniqueCode}\n- المبلغ: ${balance} ${currency}\n- القسم: ${department}\n\nيمكنك مراجعة الطلب من خلال الرابط التالي:\n${BASE_URL}/fund-requests/${fundRequest._id}`,
               recipientName: approver.name,
               actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
-              actionText: 'عرض الطلب'
+              actionText: 'عرض الطلب',
+              attachments: [{ filename: `fund-request-${uniqueCode}.pdf`, content: pdfBuffer }]
             });
           } catch (emailErr) {
             console.error(`Failed to send email to approver ${approver._id}:`, emailErr.message);
@@ -233,87 +236,102 @@ router.post('/fund-requests/:workflowId/approve', checkPermission('Approve_FundR
     // Fetch Requester
     const requester = await Admin.findById(fundRequest.requestedBy).session(session);
 
-    // Send email to requester about approval
-    if (requester && requester.email) {
-      try {
-        await sendEmailNotification({
-          to: requester.email,
-          subject: `تمت الموافقة على خطوة من طلب التمويل`,
-          body: `تمت الموافقة على الخطوة ${currentStep.level} (${currentStep.stepName || ''}) من طلب التمويل الخاص بك بواسطة ${admin.name}.\n\n${BASE_URL}/fund-requests/${fundRequest._id}`,
-          recipientName: requester.name,
-          actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
-          actionText: 'عرض التفاصيل'
-        });
-      } catch (emailErr) {
-        console.error('Failed to send email to requester:', emailErr.message);
-      }
-    }
-
     // Check if there's a next step
     const nextStep = workflow.steps.find(step => step.level === workflow.currentLevel + 1);
+    let isLastStep = false;
 
     if (nextStep) {
       // Move to next step
       workflow.currentLevel += 1;
-
-      // Notify next step approvers
-      for (const approver of nextStep.approvers) {
-        try {
-          await sendEmailNotification({
-            to: approver.email,
-            subject: `إجراء مطلوب: طلب تمويل في الخطوة ${nextStep.level}`,
-            body: `هناك طلب تمويل يحتاج إلى موافقتك في الخطوة ${nextStep.level} (${nextStep.stepName || ''}).\n\n${BASE_URL}/fund-requests/${fundRequest._id}`,
-            recipientName: approver.name,
-            actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
-            actionText: 'عرض التفاصيل'
-          });
-        } catch (emailErr) {
-          console.error(`Failed to send email to approver:`, emailErr.message);
-        }
-      }
     } else {
       // This is the last step (الكاشير) - mark as Paid
+      isLastStep = true;
       workflow.status = 'Paid';
       fundRequest.status = 'Paid';
       fundRequest.isPaid = true;
       fundRequest.paidBy = adminId;
       fundRequest.paidAt = new Date();
       await fundRequest.save({ session });
+    }
 
-      // Send completion email
+    await workflow.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    // Send emails and log activity AFTER transaction is committed
+    try {
+      // Send email to requester about approval
       if (requester && requester.email) {
         try {
+          const pdfBuffer = await generateFundRequestPDF(fundRequest, workflow);
+          await sendEmailNotification({
+            to: requester.email,
+            subject: `تمت الموافقة على خطوة من طلب التمويل`,
+            body: `تمت الموافقة على الخطوة ${currentStep.level} (${currentStep.stepName || ''}) من طلب التمويل الخاص بك بواسطة ${admin.name}.\n\n${BASE_URL}/fund-requests/${fundRequest._id}`,
+            recipientName: requester.name,
+            actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
+            actionText: 'عرض التفاصيل',
+            attachments: [{ filename: `fund-request-${fundRequest.uniqueCode}.pdf`, content: pdfBuffer }]
+          });
+        } catch (emailErr) {
+          console.error('Failed to send email to requester:', emailErr.message);
+        }
+      }
+
+      if (nextStep) {
+        // Notify next step approvers
+        for (const approver of nextStep.approvers) {
+          try {
+            const pdfBuffer = await generateFundRequestPDF(fundRequest, workflow);
+            await sendEmailNotification({
+              to: approver.email,
+              subject: `إجراء مطلوب: طلب تمويل في الخطوة ${nextStep.level}`,
+              body: `هناك طلب تمويل يحتاج إلى موافقتك في الخطوة ${nextStep.level} (${nextStep.stepName || ''}).\n\n${BASE_URL}/fund-requests/${fundRequest._id}`,
+              recipientName: approver.name,
+              actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
+              actionText: 'عرض التفاصيل',
+              attachments: [{ filename: `fund-request-${fundRequest.uniqueCode}.pdf`, content: pdfBuffer }]
+            });
+          } catch (emailErr) {
+            console.error(`Failed to send email to approver:`, emailErr.message);
+          }
+        }
+      } else if (isLastStep && requester && requester.email) {
+        // Send completion email
+        try {
+          const pdfBuffer = await generateFundRequestPDF(fundRequest, workflow);
           await sendEmailNotification({
             to: requester.email,
             subject: 'تم صرف طلب التمويل',
             body: `تم صرف طلب التمويل الخاص بك بنجاح.\n\n${BASE_URL}/fund-requests/${fundRequest._id}`,
             recipientName: requester.name,
             actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
-            actionText: 'عرض التفاصيل'
+            actionText: 'عرض التفاصيل',
+            attachments: [{ filename: `fund-request-${fundRequest.uniqueCode}.pdf`, content: pdfBuffer }]
           });
         } catch (emailErr) {
           console.error('Failed to send completion email:', emailErr.message);
         }
       }
+
+      await logActivity({
+        action: 'Approve_FundRequest',
+        performedBy: adminId,
+        targetItem: workflow._id,
+        itemType: 'FundRequest',
+        userType: 'Admin',
+        description: `تمت الموافقة على طلب التمويل عند الخطوة ${currentStep.level} (${currentStep.stepName || ''})`
+      });
+    } catch (postCommitErr) {
+      console.error('Post-commit operations error (email/logging):', postCommitErr.message);
     }
-
-    await workflow.save({ session });
-
-    await logActivity({
-      action: 'Approve_FundRequest',
-      performedBy: adminId,
-      targetItem: workflow._id,
-      itemType: 'FundRequest',
-      userType: 'Admin',
-      description: `تمت الموافقة على طلب التمويل عند الخطوة ${currentStep.level} (${currentStep.stepName || ''})`
-    });
-
-    await session.commitTransaction();
-    session.endSession();
 
     res.status(200).json({ message: 'تمت الموافقة على طلب التمويل بنجاح.', workflow });
   } catch (error) {
-    await session.abortTransaction();
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     session.endSession();
     console.error('Error approving:', error);
     res.status(500).json({ message: 'خطأ في الخادم', error: error.message });
@@ -367,92 +385,113 @@ router.post('/fund-requests/:workflowId/reject', checkPermission('Reject_FundReq
 
     const requester = await Admin.findById(fundRequest.requestedBy).session(session);
 
+    // Store info for post-commit emails
+    let rejectedAtFirstStep = false;
+    let prevStep = null;
+
     if (workflow.currentLevel === 1) {
       // If rejected at the first step, return to employee for editing
+      rejectedAtFirstStep = true;
       fundRequest.status = 'Rejected';
       await fundRequest.save({ session });
-
-      // Notify the requester
-      if (requester && requester.email) {
-        try {
-          await sendEmailNotification({
-            to: requester.email,
-            subject: 'تم رفض طلب التمويل - يرجى التعديل وإعادة الإرسال',
-            body: `تم رفض طلب التمويل الخاص بك في الخطوة ${currentStep.level} (${currentStep.stepName || ''}).\nالتعليقات: "${comments}"\n\nيرجى تعديل الطلب وإعادة إرساله.\n${BASE_URL}/fund-requests/${fundRequest._id}`,
-            recipientName: requester.name,
-            actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
-            actionText: 'تعديل الطلب'
-          });
-        } catch (emailErr) {
-          console.error('Failed to send rejection email:', emailErr.message);
-        }
-      }
     } else {
       // Return to previous step - reset prev step to Pending
-      const prevStep = workflow.steps.find(step => step.level === workflow.currentLevel - 1);
+      prevStep = workflow.steps.find(step => step.level === workflow.currentLevel - 1);
       if (prevStep) {
         prevStep.status = 'Pending';
         prevStep.approvedBy = undefined;
         prevStep.approvedAt = undefined;
         prevStep.comments = undefined;
-
-        // Notify previous step approvers
-        for (const approver of prevStep.approvers) {
-          try {
-            await sendEmailNotification({
-              to: approver.email,
-              subject: `طلب تمويل مرفوض - يحتاج إلى مراجعتك مرة أخرى`,
-              body: `تم رفض طلب التمويل في الخطوة ${currentStep.level} (${currentStep.stepName || ''}) بواسطة ${admin.name}.\nالتعليقات: "${comments}"\n\nالطلب عاد إلى خطوتك للمراجعة.\n${BASE_URL}/fund-requests/${fundRequest._id}`,
-              recipientName: approver.name,
-              actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
-              actionText: 'مراجعة الطلب'
-            });
-          } catch (emailErr) {
-            console.error('Failed to send email to prev approver:', emailErr.message);
-          }
-        }
       }
 
       // Move back one level
       workflow.currentLevel -= 1;
     }
 
-    // Notify requester about rejection
-    if (workflow.currentLevel > 0 && requester && requester.email) {
-      try {
-        await sendEmailNotification({
-          to: requester.email,
-          subject: 'تم رفض خطوة من طلب التمويل',
-          body: `تم رفض طلب التمويل في الخطوة ${currentStep.level} (${currentStep.stepName || ''}) بواسطة ${admin.name}.\nالتعليقات: "${comments}"\n\nتم إرجاع الطلب للخطوة السابقة.\n${BASE_URL}/fund-requests/${fundRequest._id}`,
-          recipientName: requester.name,
-          actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
-          actionText: 'عرض التفاصيل'
-        });
-      } catch (emailErr) {
-        console.error('Failed to send rejection email to requester:', emailErr.message);
-      }
-    }
-
     await workflow.save({ session });
-
-    await logActivity({
-      action: 'Reject_FundRequest',
-      performedBy: adminId,
-      targetItem: workflow._id,
-      itemType: 'FundRequest',
-      userType: 'Admin',
-      description: `تم رفض طلب التمويل عند الخطوة ${currentStep.level} (${currentStep.stepName || ''}) - تم الإرجاع للخطوة السابقة`
-    });
 
     await session.commitTransaction();
     session.endSession();
+
+    // Send emails and log activity AFTER transaction is committed
+    try {
+      const pdfBuffer = await generateFundRequestPDF(fundRequest, workflow);
+
+      if (rejectedAtFirstStep) {
+        // Notify the requester
+        if (requester && requester.email) {
+          try {
+            await sendEmailNotification({
+              to: requester.email,
+              subject: 'تم رفض طلب التمويل - يرجى التعديل وإعادة الإرسال',
+              body: `تم رفض طلب التمويل الخاص بك في الخطوة ${currentStep.level} (${currentStep.stepName || ''}).\nالتعليقات: "${comments}"\n\nيرجى تعديل الطلب وإعادة إرساله.\n${BASE_URL}/fund-requests/${fundRequest._id}`,
+              recipientName: requester.name,
+              actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
+              actionText: 'تعديل الطلب',
+              attachments: [{ filename: `fund-request-${fundRequest.uniqueCode}.pdf`, content: pdfBuffer }]
+            });
+          } catch (emailErr) {
+            console.error('Failed to send rejection email:', emailErr.message);
+          }
+        }
+      } else {
+        // Notify previous step approvers
+        if (prevStep) {
+          for (const approver of prevStep.approvers) {
+            try {
+              await sendEmailNotification({
+                to: approver.email,
+                subject: `طلب تمويل مرفوض - يحتاج إلى مراجعتك مرة أخرى`,
+                body: `تم رفض طلب التمويل في الخطوة ${currentStep.level} (${currentStep.stepName || ''}) بواسطة ${admin.name}.\nالتعليقات: "${comments}"\n\nالطلب عاد إلى خطوتك للمراجعة.\n${BASE_URL}/fund-requests/${fundRequest._id}`,
+                recipientName: approver.name,
+                actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
+                actionText: 'مراجعة الطلب',
+                attachments: [{ filename: `fund-request-${fundRequest.uniqueCode}.pdf`, content: pdfBuffer }]
+              });
+            } catch (emailErr) {
+              console.error('Failed to send email to prev approver:', emailErr.message);
+            }
+          }
+        }
+
+        // Notify requester about rejection
+        if (requester && requester.email) {
+          try {
+            await sendEmailNotification({
+              to: requester.email,
+              subject: 'تم رفض خطوة من طلب التمويل',
+              body: `تم رفض طلب التمويل في الخطوة ${currentStep.level} (${currentStep.stepName || ''}) بواسطة ${admin.name}.\nالتعليقات: "${comments}"\n\nتم إرجاع الطلب للخطوة السابقة.\n${BASE_URL}/fund-requests/${fundRequest._id}`,
+              recipientName: requester.name,
+              actionUrl: `${BASE_URL}/fund-requests/${fundRequest._id}`,
+              actionText: 'عرض التفاصيل',
+              attachments: [{ filename: `fund-request-${fundRequest.uniqueCode}.pdf`, content: pdfBuffer }]
+            });
+          } catch (emailErr) {
+            console.error('Failed to send rejection email to requester:', emailErr.message);
+          }
+        }
+      }
+
+      await logActivity({
+        action: 'Reject_FundRequest',
+        performedBy: adminId,
+        targetItem: workflow._id,
+        itemType: 'FundRequest',
+        userType: 'Admin',
+        description: `تم رفض طلب التمويل عند الخطوة ${currentStep.level} (${currentStep.stepName || ''}) - تم الإرجاع للخطوة السابقة`
+      });
+    } catch (postCommitErr) {
+      console.error('Post-commit operations error (email/logging):', postCommitErr.message);
+    }
 
     res.status(200).json({
       message: 'تم رفض طلب التمويل وإرجاعه للخطوة السابقة.',
       workflow
     });
   } catch (error) {
-    await session.abortTransaction();
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     session.endSession();
     console.error('Error rejecting:', error);
     res.status(500).json({ message: 'خطأ في الخادم', error: error.message });
