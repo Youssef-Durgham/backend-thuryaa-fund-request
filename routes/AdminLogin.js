@@ -247,38 +247,41 @@ router.post('/register/admin', async (req, res) => {
   }
 });
 
-// Admin login
+// ✅ FIX: Admin login - removed MongoDB transaction (requires replica set)
+// and fixed error status codes
 router.post('/login/admin', async (req, res) => {
   const { email, password, newPassword } = req.body;
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  let transactionCommitted = false;
 
   try {
     const admin = await Admin.findOne({ email })
       .populate('entities')
-      .populate('roles')
-      .session(session);
+      .populate('roles');
 
-    if (!admin || !(await bcrypt.compare(password, admin.password))) {
-      throw new Error('بريد إلكتروني أو كلمة مرور غير صحيحة');
+    if (!admin) {
+      return res.status(401).json({ message: 'بريد إلكتروني أو كلمة مرور غير صحيحة' });
+    }
+
+    const isMatch = await bcrypt.compare(password, admin.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'بريد إلكتروني أو كلمة مرور غير صحيحة' });
     }
 
     // Handle password change if required
     if (admin.forcePasswordChange) {
       if (!newPassword) {
-        throw new Error('يجب تغيير كلمة المرور');
+        return res.status(403).json({ 
+          message: 'يجب تغيير كلمة المرور',
+          forcePasswordChange: true 
+        });
       }
       if (await bcrypt.compare(newPassword, admin.oldPassword)) {
-        throw new Error('كلمة المرور الجديدة لا يمكن أن تكون نفس القديمة');
+        return res.status(400).json({ message: 'كلمة المرور الجديدة لا يمكن أن تكون نفس القديمة' });
       }
       admin.oldPassword = admin.password;
-      admin.password = await bcrypt.hash(newPassword, 10);
+      admin.password = newPassword; // pre-save hook will hash it
       admin.forcePasswordChange = false;
+      await admin.save();
     }
-
-    await admin.save({ session });
 
     const token = jwt.sign({
       id: admin._id,
@@ -287,29 +290,29 @@ router.post('/login/admin', async (req, res) => {
       name: admin.name,
     }, JWT_SECRET, { expiresIn: '365d' });
 
-    // Log the login
-    await Promise.all([
-      new LoginHistory({
-        userId: admin._id,
-        ipAddress: req.ip,
-      }).save({ session }),
+    // Log the login (non-blocking, don't let logging failure break login)
+    try {
+      await Promise.all([
+        new LoginHistory({
+          userId: admin._id,
+          ipAddress: req.ip,
+        }).save(),
 
-      new ActivityLog({
-        action: 'login',
-        performedBy: admin._id,
-        targetUser: admin._id,
-        userType: 'System',
-        itemType: 'Admin-Activitys'
-      }).save({ session })
-    ]);
-
-    await session.commitTransaction();
-    transactionCommitted = true;
+        new ActivityLog({
+          action: 'login',
+          performedBy: admin._id,
+          targetUser: admin._id,
+          userType: 'System',
+          itemType: 'Admin-Activitys'
+        }).save()
+      ]);
+    } catch (logError) {
+      console.error('Failed to log login activity:', logError);
+      // Don't fail the login just because logging failed
+    }
 
     res.status(200).json({
       token,
-      // entities: activeEntities, // Uncomment if activeEntities logic is added back
-      // currentEntity: await Entity.findById(admin.currentEntity), // Uncomment if currentEntity is required
       user: {
         id: admin._id,
         name: admin.name,
@@ -320,12 +323,8 @@ router.post('/login/admin', async (req, res) => {
       }
     });
   } catch (error) {
-    if (!transactionCommitted) {
-      await session.abortTransaction();
-    }
-    res.status(500).json({ message: error.message });
-  } finally {
-    session.endSession();
+    console.error('Login error:', error);
+    res.status(500).json({ message: 'خطأ في الخادم' });
   }
 });
 
