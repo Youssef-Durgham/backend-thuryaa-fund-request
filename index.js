@@ -155,6 +155,12 @@ app.use('/api/departments', departmentRoutes);
 app.use('/api/reports', Reports);
 
 
+// Local development server
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 4000;
+  app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+}
+
 // Lambda function handler
 module.exports.handler = (event, context, callback) => {
   const handler = serverless(app);
