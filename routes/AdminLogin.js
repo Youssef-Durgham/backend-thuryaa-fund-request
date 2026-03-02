@@ -73,12 +73,13 @@ const checkPermission = (permission) => {
 // Create admin account
 router.post('/create-admin/sys', checkPermission('Create_admin'), async (req, res) => {
   const { email, name, password, phone, type, department } = req.body;
+  const normalizedEmail = email?.toLowerCase().trim();
   try {
-    let admin = await Admin.findOne({ email });
+    let admin = await Admin.findOne({ email: normalizedEmail });
     if (admin) {
       return res.status(400).json({ message: 'المشرف موجود بالفعل' });
     }
-    admin = new Admin({ email, name, password, phone, type, department });
+    admin = new Admin({ email: normalizedEmail, name, password, phone, type, department });
     await admin.save();
     // Return admin without password
     const adminObj = admin.toObject();
@@ -234,12 +235,13 @@ router.post('/assign-role-group-direct', async (req, res) => {
 // Admin registration
 router.post('/register/admin', async (req, res) => {
   const { email, name, password, roles, phone, department } = req.body;
+  const normalizedEmail = email?.toLowerCase().trim();
   try {
-    let admin = await Admin.findOne({ email });
+    let admin = await Admin.findOne({ email: normalizedEmail });
     if (admin) {
       return res.status(400).json({ message: 'المشرف موجود بالفعل' });
     }
-    admin = new Admin({ email, name, password, roles, phone, department });
+    admin = new Admin({ email: normalizedEmail, name, password, roles, phone, department });
     await admin.save();
     res.status(201).json({ message: 'تم تسجيل المشرف بنجاح' });
   } catch (error) {
@@ -250,10 +252,11 @@ router.post('/register/admin', async (req, res) => {
 // ✅ FIX: Admin login - removed MongoDB transaction (requires replica set)
 // and fixed error status codes
 router.post('/login/admin', async (req, res) => {
-  const { email, password, newPassword } = req.body;
+  const { email, password } = req.body;
+  const normalizedEmail = email?.toLowerCase().trim();
 
   try {
-    const admin = await Admin.findOne({ email })
+    const admin = await Admin.findOne({ email: normalizedEmail })
       .populate('entities')
       .populate('roles');
 
@@ -264,23 +267,6 @@ router.post('/login/admin', async (req, res) => {
     const isMatch = await bcrypt.compare(password, admin.password);
     if (!isMatch) {
       return res.status(401).json({ message: 'بريد إلكتروني أو كلمة مرور غير صحيحة' });
-    }
-
-    // Handle password change if required
-    if (admin.forcePasswordChange) {
-      if (!newPassword) {
-        return res.status(403).json({ 
-          message: 'يجب تغيير كلمة المرور',
-          forcePasswordChange: true 
-        });
-      }
-      if (await bcrypt.compare(newPassword, admin.oldPassword)) {
-        return res.status(400).json({ message: 'كلمة المرور الجديدة لا يمكن أن تكون نفس القديمة' });
-      }
-      admin.oldPassword = admin.password;
-      admin.password = newPassword; // pre-save hook will hash it
-      admin.forcePasswordChange = false;
-      await admin.save();
     }
 
     const token = jwt.sign({
